@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, ShoppingCart, User, X, 
-  Send, Loader2, Plus, AlertCircle, ServerCrash
+  Send, Loader2, Plus, ServerCrash
 } from 'lucide-react';
 
 // --- Configuration ---
