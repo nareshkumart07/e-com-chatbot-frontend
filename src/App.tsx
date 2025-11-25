@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, ShoppingCart, User, X, 
-  Send, Loader2, Plus, AlertCircle, RefreshCw
+  Send, Loader2, Plus, AlertCircle
 } from 'lucide-react';
 
 // --- Configuration ---
