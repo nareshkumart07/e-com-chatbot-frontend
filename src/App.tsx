@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  MessageSquare, ShoppingCart, User, Search, X, 
-  Send, Package, Settings, LogOut, Plus, Trash2, Check,
-  Bot, Loader2, Star, Filter, MapPin, Phone
+  MessageSquare, ShoppingCart, User, X, 
+  Send, Loader2, Plus
 } from 'lucide-react';
 
 // --- Configuration ---
-// NOTE: For deployment, uncomment the line below to use Environment Variables.
-// For this live preview, we use the hardcoded localhost URL to avoid build warnings.
-// const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api'; 
-const BACKEND_URL = 'http://localhost:5000/api';
+// This looks for the VITE_BACKEND_URL environment variable.
+// If not found, it falls back to localhost (for testing).
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 // --- Types ---
 interface Product {
@@ -70,7 +68,6 @@ export default function App() {
         setOrders(await orderRes.json());
         setLoading(false);
         
-        // Initial Chat
         setMessages([{ 
            sender: 'bot', 
            text: `Hello! I am connected to the server. How can I help?`,
@@ -79,7 +76,7 @@ export default function App() {
 
       } catch (err) {
         console.error(err);
-        setError(`Could not connect to Backend at ${BACKEND_URL}.`);
+        setError(`Could not connect to Backend at ${BACKEND_URL}`);
         setLoading(false);
       }
     };
@@ -173,7 +170,7 @@ export default function App() {
       <div className="bg-red-50 p-6 rounded-lg border border-red-200">
         <h2 className="text-red-700 font-bold text-xl mb-2">Backend Disconnected</h2>
         <p className="text-red-600 mb-4">{error}</p>
-        <p className="text-sm text-gray-600">Please ensure the backend is running and reachable.</p>
+        <p className="text-sm text-gray-600">Please ensure the backend is running and you have set the VITE_BACKEND_URL.</p>
       </div>
     </div>
   );
