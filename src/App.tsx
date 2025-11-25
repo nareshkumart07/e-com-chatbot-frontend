@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, ShoppingCart, User, X, 
-  Send, Loader2, Plus, AlertCircle
+  Send, Loader2, Plus, AlertCircle, ServerCrash
 } from 'lucide-react';
 
 // --- Configuration ---
@@ -60,7 +60,6 @@ export default function App() {
 
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
-  // Initialize chat immediately with greeting and FAQs
   const [messages, setMessages] = useState<ChatMessage[]>([
     { 
        sender: 'bot', 
@@ -82,26 +81,36 @@ export default function App() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      setError('');
+      
+      console.log("Attempting to connect to:", BACKEND_URL);
+
       try {
-        // Fetch Products independently so errors in other endpoints don't break the shop
+        // 1. Fetch Products (Critical)
         const prodRes = await fetch(`${BACKEND_URL}/products`);
-        if (prodRes.ok) {
-          setProducts(await prodRes.json());
-        } else {
-          console.error("Failed to load products");
+        
+        if (!prodRes.ok) {
+          throw new Error(`Backend Error (${prodRes.status}): ${prodRes.statusText}`);
+        }
+        
+        const prodData = await prodRes.json();
+        setProducts(prodData);
+
+        // 2. Fetch User & Orders (Non-Critical - Fail silently)
+        try {
+          const userRes = await fetch(`${BACKEND_URL}/user`);
+          if (userRes.ok) setUser(await userRes.json());
+          
+          const orderRes = await fetch(`${BACKEND_URL}/orders`);
+          if (orderRes.ok) setOrders(await orderRes.json());
+        } catch (secondaryErr) {
+          console.warn("Secondary data failed to load", secondaryErr);
         }
 
-        // Fetch User (Optional context)
-        const userRes = await fetch(`${BACKEND_URL}/user`).catch(() => null);
-        if (userRes && userRes.ok) setUser(await userRes.json());
-
-        // Fetch Orders (Optional context)
-        const orderRes = await fetch(`${BACKEND_URL}/orders`).catch(() => null);
-        if (orderRes && orderRes.ok) setOrders(await orderRes.json());
-
-      } catch (err) {
-        console.error("Network Error:", err);
-        setError(`Unable to connect to server at ${BACKEND_URL}`);
+      } catch (err: any) {
+        console.error("Critical Network Error:", err);
+        // Display a helpful error message for debugging
+        setError(err.message || "Failed to connect to server");
       } finally {
         setLoading(false);
       }
@@ -151,7 +160,6 @@ export default function App() {
     const textToSend = textOverride || chatInput;
     if (!textToSend.trim()) return;
 
-    // Add user message
     setMessages(prev => [...prev, { sender: 'user', text: textToSend, timestamp: new Date() }]);
     setChatInput('');
     setIsTyping(true);
@@ -165,6 +173,9 @@ export default function App() {
            context: { user, cart } 
         })
       });
+      
+      if (!res.ok) throw new Error("Chat API failed");
+      
       const data = await res.json();
       setMessages(prev => [...prev, { 
         sender: 'bot', 
@@ -206,10 +217,15 @@ export default function App() {
 
   if (loading) return <div className="flex h-screen items-center justify-center gap-2"><Loader2 className="animate-spin text-indigo-600"/> Loading Store...</div>;
   
-  // Show minimal UI even on error so user isn't stuck
+  // Robust Error Display
   const renderErrorBanner = () => error && (
-    <div className="bg-red-50 p-4 border-b border-red-200 flex items-center justify-center gap-2 text-red-700 text-sm">
-      <AlertCircle size={16}/> {error}
+    <div className="bg-red-50 p-6 flex flex-col items-center justify-center gap-3 text-red-800 border-b border-red-200">
+      <div className="flex items-center gap-2 font-bold text-lg"><ServerCrash size={24}/> Connection Failed</div>
+      <p className="text-sm">{error}</p>
+      <div className="text-xs bg-white p-2 rounded border border-red-100 font-mono text-gray-500">
+        Trying to connect to: {BACKEND_URL}
+      </div>
+      <p className="text-xs text-red-600 mt-2">Tip: Check if your VITE_BACKEND_URL in Railway Settings ends with <b>/api</b></p>
     </div>
   );
 
@@ -236,7 +252,10 @@ export default function App() {
          {view === 'home' && (
            <>
              {products.length === 0 && !loading && !error ? (
-                <div className="text-center py-20 text-gray-500">No products found. Please check backend connection.</div>
+                <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-gray-100">
+                    <p className="text-gray-500 text-lg mb-2">No products found.</p>
+                    <p className="text-sm text-gray-400">The backend returned an empty list.</p>
+                </div>
              ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                   {products.map(p => (
