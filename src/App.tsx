@@ -1,13 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, ShoppingCart, User, X, 
-  Send, Loader2, Plus
+  Send, Loader2, Plus, AlertCircle, RefreshCw
 } from 'lucide-react';
 
 // --- Configuration ---
-// This looks for the VITE_BACKEND_URL environment variable.
-// If not found, it falls back to localhost (for testing).
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+
+// --- Constants ---
+const DEFAULT_FAQS = [
+  "Where is my order?",
+  "What is your return policy?",
+  "Do you offer free shipping?",
+  "Show me best sellers",
+  "How to contact support?",
+  "Payment methods"
+];
 
 // --- Types ---
 interface Product {
@@ -31,6 +39,15 @@ interface Order {
   deliveryDate: string;
 }
 
+interface ChatMessage {
+  sender: 'user' | 'bot';
+  text: string;
+  timestamp: Date;
+  type?: 'text' | 'options';
+  options?: string[];
+  data?: any;
+}
+
 // --- Main App ---
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -43,9 +60,19 @@ export default function App() {
 
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [messages, setMessages] = useState<any[]>([]);
+  // Initialize chat immediately with greeting and FAQs
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { 
+       sender: 'bot', 
+       text: "Hello! Welcome to StyleStore. I'm your AI assistant. How can I help you today?",
+       timestamp: new Date(),
+       type: 'options',
+       options: DEFAULT_FAQS
+    }
+  ]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Admin State
   const [adminToken, setAdminToken] = useState('');
@@ -53,35 +80,39 @@ export default function App() {
 
   // --- Initial Fetch ---
   useEffect(() => {
-    const init = async () => {
+    const fetchData = async () => {
+      setLoading(true);
       try {
-        const [prodRes, userRes, orderRes] = await Promise.all([
-          fetch(`${BACKEND_URL}/products`),
-          fetch(`${BACKEND_URL}/user`),
-          fetch(`${BACKEND_URL}/orders`)
-        ]);
+        // Fetch Products independently so errors in other endpoints don't break the shop
+        const prodRes = await fetch(`${BACKEND_URL}/products`);
+        if (prodRes.ok) {
+          setProducts(await prodRes.json());
+        } else {
+          console.error("Failed to load products");
+        }
 
-        if (!prodRes.ok) throw new Error("Backend connection failed");
-        
-        setProducts(await prodRes.json());
-        setUser(await userRes.json());
-        setOrders(await orderRes.json());
-        setLoading(false);
-        
-        setMessages([{ 
-           sender: 'bot', 
-           text: `Hello! I am connected to the server. How can I help?`,
-           timestamp: new Date()
-        }]);
+        // Fetch User (Optional context)
+        const userRes = await fetch(`${BACKEND_URL}/user`).catch(() => null);
+        if (userRes && userRes.ok) setUser(await userRes.json());
+
+        // Fetch Orders (Optional context)
+        const orderRes = await fetch(`${BACKEND_URL}/orders`).catch(() => null);
+        if (orderRes && orderRes.ok) setOrders(await orderRes.json());
 
       } catch (err) {
-        console.error(err);
-        setError(`Could not connect to Backend at ${BACKEND_URL}`);
+        console.error("Network Error:", err);
+        setError(`Unable to connect to server at ${BACKEND_URL}`);
+      } finally {
         setLoading(false);
       }
     };
-    init();
+    fetchData();
   }, []);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isChatOpen]);
 
   // --- Actions ---
 
@@ -102,22 +133,26 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: cart, total, customer: { ...user, ...customerDetails } })
       });
-      const newOrder = await res.json();
-      setOrders(prev => [newOrder, ...prev]);
-      setCart([]);
-      setView('profile');
-      alert(`Order #${newOrder.id} placed!`);
+      if (res.ok) {
+        const newOrder = await res.json();
+        setOrders(prev => [newOrder, ...prev]);
+        setCart([]);
+        setView('profile');
+        alert(`Order #${newOrder.id} placed successfully!`);
+      } else {
+        throw new Error("Order failed");
+      }
     } catch (err) {
-      alert("Failed to place order");
+      alert("Failed to place order. Please try again.");
     }
   };
 
-  const sendChatMessage = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!chatInput.trim()) return;
+  const handleChatSubmit = async (textOverride?: string) => {
+    const textToSend = textOverride || chatInput;
+    if (!textToSend.trim()) return;
 
-    const userText = chatInput;
-    setMessages(prev => [...prev, { sender: 'user', text: userText, timestamp: new Date() }]);
+    // Add user message
+    setMessages(prev => [...prev, { sender: 'user', text: textToSend, timestamp: new Date() }]);
     setChatInput('');
     setIsTyping(true);
 
@@ -126,14 +161,20 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-           message: userText,
+           message: textToSend,
            context: { user, cart } 
         })
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { sender: 'bot', text: data.text, timestamp: new Date(), type: data.type, data: data.data }]);
+      setMessages(prev => [...prev, { 
+        sender: 'bot', 
+        text: data.text, 
+        timestamp: new Date(), 
+        type: data.type, 
+        data: data.data 
+      }]);
     } catch (err) {
-      setMessages(prev => [...prev, { sender: 'bot', text: "Server error. Try again later.", timestamp: new Date() }]);
+      setMessages(prev => [...prev, { sender: 'bot', text: "I'm having trouble connecting to my brain right now. Please try again later.", timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
@@ -163,86 +204,124 @@ export default function App() {
 
   // --- Views ---
 
-  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-indigo-600"/></div>;
+  if (loading) return <div className="flex h-screen items-center justify-center gap-2"><Loader2 className="animate-spin text-indigo-600"/> Loading Store...</div>;
   
-  if (error) return (
-    <div className="flex h-screen items-center justify-center flex-col p-4 text-center">
-      <div className="bg-red-50 p-6 rounded-lg border border-red-200">
-        <h2 className="text-red-700 font-bold text-xl mb-2">Backend Disconnected</h2>
-        <p className="text-red-600 mb-4">{error}</p>
-        <p className="text-sm text-gray-600">Please ensure the backend is running and you have set the VITE_BACKEND_URL.</p>
-      </div>
+  // Show minimal UI even on error so user isn't stuck
+  const renderErrorBanner = () => error && (
+    <div className="bg-red-50 p-4 border-b border-red-200 flex items-center justify-center gap-2 text-red-700 text-sm">
+      <AlertCircle size={16}/> {error}
     </div>
   );
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
+      {renderErrorBanner()}
+      
       {/* Navbar */}
       <nav className="bg-white sticky top-0 z-40 border-b border-gray-200 shadow-sm h-16 px-6 flex items-center justify-between">
-         <div className="font-bold text-xl text-indigo-900 cursor-pointer" onClick={() => setView('home')}>StyleStore</div>
+         <div className="font-bold text-xl text-indigo-900 cursor-pointer flex items-center gap-2" onClick={() => setView('home')}>
+            StyleStore
+         </div>
          <div className="flex gap-4">
-            <button onClick={() => setView('cart')} className="relative p-2 text-gray-600 hover:text-indigo-600">
+            <button onClick={() => setView('cart')} className="relative p-2 text-gray-600 hover:text-indigo-600 transition-colors">
                <ShoppingCart />
-               {cart.length > 0 && <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{cart.length}</span>}
+               {cart.length > 0 && <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">{cart.length}</span>}
             </button>
-            <button onClick={() => setView('profile')} className="p-2 text-gray-600 hover:text-indigo-600"><User /></button>
+            <button onClick={() => setView('profile')} className="p-2 text-gray-600 hover:text-indigo-600 transition-colors"><User /></button>
          </div>
       </nav>
 
       {/* Content */}
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
          {view === 'home' && (
-           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              {products.map(p => (
-                 <div key={p.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col">
-                    <img src={p.image} className="h-40 object-contain mb-4"/>
-                    <h3 className="font-semibold line-clamp-2">{p.title}</h3>
-                    <div className="mt-auto flex justify-between items-center pt-4">
-                       <span className="font-bold text-indigo-600">${p.price}</span>
-                       <button onClick={() => addToCart(p)} className="bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700"><Plus size={16}/></button>
-                    </div>
-                 </div>
-              ))}
-           </div>
+           <>
+             {products.length === 0 && !loading && !error ? (
+                <div className="text-center py-20 text-gray-500">No products found. Please check backend connection.</div>
+             ) : (
+               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {products.map(p => (
+                     <div key={p.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col group hover:shadow-md transition-shadow">
+                        <div className="h-48 w-full flex items-center justify-center mb-4 bg-white p-2">
+                            <img 
+                              src={p.image} 
+                              alt={p.title}
+                              className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/150?text=No+Image';
+                              }}
+                            />
+                        </div>
+                        <h3 className="font-semibold text-gray-800 line-clamp-2 text-sm mb-2 h-10">{p.title}</h3>
+                        <div className="mt-auto flex justify-between items-center pt-2 border-t border-gray-50">
+                           <span className="font-bold text-indigo-600 text-lg">${p.price}</span>
+                           <button 
+                             onClick={() => addToCart(p)} 
+                             className="bg-indigo-50 text-indigo-600 p-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors"
+                             aria-label="Add to cart"
+                           >
+                             <Plus size={18}/>
+                           </button>
+                        </div>
+                     </div>
+                  ))}
+               </div>
+             )}
+           </>
          )}
 
          {view === 'cart' && (
-           <div className="max-w-2xl mx-auto bg-white p-6 rounded-xl shadow-sm">
-             <h2 className="text-2xl font-bold mb-4">Cart</h2>
-             {cart.map(item => (
-                <div key={item.id} className="flex justify-between items-center py-4 border-b">
-                   <div className="flex items-center gap-4">
-                      <img src={item.image} className="w-12 h-12 object-contain"/>
-                      <div>
-                         <p className="font-bold">{item.title}</p>
-                         <p className="text-sm text-gray-500">${item.price} x {item.quantity}</p>
-                      </div>
-                   </div>
-                   <span className="font-bold">${(item.price * item.quantity).toFixed(2)}</span>
-                </div>
-             ))}
-             {cart.length > 0 && (
-                <button onClick={() => placeOrder({})} className="w-full mt-6 bg-indigo-600 text-white py-3 rounded-lg font-bold">Place Order</button>
+           <div className="max-w-2xl mx-auto bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2"><ShoppingCart className="text-indigo-600"/> Your Cart</h2>
+             {cart.length === 0 ? (
+               <div className="text-center py-12 text-gray-400">Your cart is empty</div>
+             ) : (
+               <>
+                 {cart.map(item => (
+                    <div key={item.id} className="flex justify-between items-center py-4 border-b last:border-0">
+                       <div className="flex items-center gap-4">
+                          <img src={item.image} className="w-16 h-16 object-contain bg-gray-50 rounded" onError={(e) => (e.target as HTMLImageElement).src = 'https://via.placeholder.com/50'}/>
+                          <div>
+                             <p className="font-bold text-gray-800 line-clamp-1">{item.title}</p>
+                             <p className="text-sm text-gray-500">${item.price} x {item.quantity}</p>
+                          </div>
+                       </div>
+                       <span className="font-bold text-indigo-600">${(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                 ))}
+                 <div className="mt-6 pt-6 border-t">
+                    <div className="flex justify-between text-xl font-bold mb-6">
+                      <span>Total</span>
+                      <span>${cart.reduce((sum, i) => sum + (i.price * i.quantity), 0).toFixed(2)}</span>
+                    </div>
+                    <button onClick={() => placeOrder({})} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
+                      Place Order
+                    </button>
+                 </div>
+               </>
              )}
            </div>
          )}
 
-         {view === 'profile' && user && (
+         {view === 'profile' && (
             <div className="max-w-2xl mx-auto">
-               <div className="bg-white p-6 rounded-xl shadow-sm mb-6">
-                  <h2 className="text-2xl font-bold mb-4">Welcome, {user.name}</h2>
-                  <p className="text-gray-600">Email: {user.email}</p>
+               <div className="bg-white p-8 rounded-xl shadow-sm mb-6 border-l-4 border-indigo-600">
+                  <h2 className="text-2xl font-bold mb-2">Welcome, {user?.name || 'Guest'}</h2>
+                  <p className="text-gray-600">{user?.email || 'Please log in to see account details'}</p>
                </div>
+               <h3 className="font-bold text-gray-700 mb-4 ml-1">Order History</h3>
                <div className="space-y-4">
+                  {orders.length === 0 && <p className="text-gray-400 ml-1">No past orders found.</p>}
                   {orders.map(o => (
-                     <div key={o.id} className="bg-white p-4 rounded-lg shadow-sm flex justify-between">
+                     <div key={o.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center hover:shadow-md transition-shadow">
                         <div>
-                           <p className="font-bold">Order #{o.id}</p>
-                           <p className="text-sm text-gray-500">{o.date}</p>
+                           <p className="font-bold text-gray-800 flex items-center gap-2">Order #{o.id}</p>
+                           <p className="text-xs text-gray-400 mt-1">{o.date}</p>
                         </div>
                         <div className="text-right">
-                           <p className="font-bold text-indigo-600">${o.total.toFixed(2)}</p>
-                           <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{o.status}</span>
+                           <p className="font-bold text-indigo-600 text-lg">${o.total.toFixed(2)}</p>
+                           <span className={`text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wide ${o.status === 'Delivered' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                             {o.status}
+                           </span>
                         </div>
                      </div>
                   ))}
@@ -251,32 +330,35 @@ export default function App() {
          )}
 
          {view === 'admin' && (
-            <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-sm">
+            <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-gray-200">
                {!adminToken ? (
-                  <div className="max-w-sm mx-auto">
-                     <h2 className="text-2xl font-bold mb-4">Admin Login</h2>
-                     <input type="password" placeholder="Password (admin)" className="w-full border p-2 rounded mb-4" onKeyDown={(e) => e.key === 'Enter' && loginAdmin((e.target as HTMLInputElement).value)}/>
+                  <div className="max-w-sm mx-auto text-center">
+                     <h2 className="text-2xl font-bold mb-6 text-gray-800">Admin Login</h2>
+                     <input type="password" placeholder="Password (admin)" className="w-full border border-gray-300 p-3 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 outline-none" onKeyDown={(e) => e.key === 'Enter' && loginAdmin((e.target as HTMLInputElement).value)}/>
+                     <button className="text-sm text-indigo-600 hover:underline">Forgot Password?</button>
                   </div>
                ) : (
                   <div>
-                     <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
-                     {adminStats && (
-                        <div className="grid grid-cols-3 gap-6 mb-8">
-                           <div className="bg-indigo-50 p-4 rounded-lg">
-                              <p className="text-gray-500">Orders</p>
-                              <p className="text-3xl font-bold">{adminStats.totalOrders}</p>
+                     <h2 className="text-2xl font-bold mb-8 flex justify-between items-center">
+                       Dashboard
+                       <button onClick={() => setAdminToken('')} className="text-sm text-red-500 hover:bg-red-50 px-3 py-1 rounded border border-red-200">Logout</button>
+                     </h2>
+                     {adminStats ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                           <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                              <p className="text-gray-500 text-sm font-semibold uppercase tracking-wider">Total Orders</p>
+                              <p className="text-4xl font-bold text-indigo-700 mt-2">{adminStats.totalOrders}</p>
                            </div>
-                           <div className="bg-green-50 p-4 rounded-lg">
-                              <p className="text-gray-500">Messages</p>
-                              <p className="text-3xl font-bold">{adminStats.totalMessages}</p>
+                           <div className="bg-green-50 p-6 rounded-xl border border-green-100">
+                              <p className="text-gray-500 text-sm font-semibold uppercase tracking-wider">Messages</p>
+                              <p className="text-4xl font-bold text-green-700 mt-2">{adminStats.totalMessages}</p>
                            </div>
-                           <div className="bg-red-50 p-4 rounded-lg">
-                              <p className="text-gray-500">Pending Support</p>
-                              <p className="text-3xl font-bold">{adminStats.pendingSupport}</p>
+                           <div className="bg-red-50 p-6 rounded-xl border border-red-100">
+                              <p className="text-gray-500 text-sm font-semibold uppercase tracking-wider">Support Queue</p>
+                              <p className="text-4xl font-bold text-red-700 mt-2">{adminStats.pendingSupport}</p>
                            </div>
                         </div>
-                     )}
-                     <button onClick={() => setAdminToken('')} className="text-red-500 underline">Logout</button>
+                     ) : <div className="text-center py-10"><Loader2 className="animate-spin mx-auto text-indigo-500"/></div>}
                   </div>
                )}
             </div>
@@ -284,40 +366,101 @@ export default function App() {
       </main>
 
       {/* Chat Widget */}
-      <div className={`fixed bottom-4 right-4 z-50 ${isChatOpen ? 'w-96 h-[500px]' : 'w-16 h-16'}`}>
+      <div className={`fixed bottom-6 right-6 z-50 transition-all duration-300 ${isChatOpen ? 'w-[380px] h-[600px] opacity-100' : 'w-16 h-16'}`}>
          {!isChatOpen && (
-            <button onClick={() => setIsChatOpen(true)} className="w-full h-full bg-indigo-600 rounded-full text-white shadow-lg flex items-center justify-center hover:scale-110 transition-transform">
-               <MessageSquare />
+            <button 
+              onClick={() => setIsChatOpen(true)} 
+              className="w-full h-full bg-indigo-600 rounded-full text-white shadow-xl flex items-center justify-center hover:scale-110 hover:bg-indigo-700 transition-all"
+            >
+               <MessageSquare size={28} />
+               <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
+               </span>
             </button>
          )}
          {isChatOpen && (
-            <div className="bg-white w-full h-full rounded-2xl shadow-2xl flex flex-col border border-gray-200">
-               <div className="bg-indigo-700 p-4 text-white rounded-t-2xl flex justify-between items-center">
-                  <span className="font-bold">Support AI</span>
-                  <button onClick={() => setIsChatOpen(false)}><X size={18}/></button>
+            <div className="bg-white w-full h-full rounded-2xl shadow-2xl flex flex-col border border-gray-200 overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-200">
+               {/* Header */}
+               <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 p-4 text-white flex justify-between items-center shadow-md">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                       <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                          <MessageSquare size={20} />
+                       </div>
+                       <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-indigo-700 rounded-full"></span>
+                    </div>
+                    <div>
+                       <h3 className="font-bold text-sm">Nexa AI Assistant</h3>
+                       <p className="text-xs text-indigo-200">Online • Typically replies instantly</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsChatOpen(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors"><X size={18}/></button>
                </div>
-               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+
+               {/* Messages Area */}
+               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
                   {messages.map((m, i) => (
-                     <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`p-3 rounded-lg max-w-[80%] text-sm ${m.sender === 'user' ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200'}`}>
+                     <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                        <div className={`p-3 rounded-2xl max-w-[85%] text-sm shadow-sm ${
+                           m.sender === 'user' 
+                              ? 'bg-indigo-600 text-white rounded-br-none' 
+                              : 'bg-white border border-gray-100 text-gray-700 rounded-bl-none'
+                        }`}>
                            {m.text}
                         </div>
+                        
+                        {/* Render Options Chips if available */}
+                        {m.type === 'options' && m.options && (
+                           <div className="flex flex-wrap gap-2 mt-2 max-w-[90%]">
+                              {m.options.map((opt, idx) => (
+                                 <button 
+                                    key={idx}
+                                    onClick={() => handleChatSubmit(opt)}
+                                    className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-full hover:bg-indigo-100 hover:border-indigo-300 transition-colors"
+                                 >
+                                    {opt}
+                                 </button>
+                              ))}
+                           </div>
+                        )}
+                        
+                        <span className="text-[10px] text-gray-400 mt-1 px-1">
+                           {m.sender === 'bot' ? 'AI Assistant' : 'You'} • {m.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
                      </div>
                   ))}
-                  {isTyping && <div className="text-xs text-gray-500 italic ml-2">AI is typing...</div>}
+                  {isTyping && (
+                     <div className="flex items-start">
+                        <div className="bg-gray-100 p-3 rounded-2xl rounded-bl-none text-gray-400 text-xs flex gap-1 items-center">
+                           <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
+                           <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-75"></span>
+                           <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-150"></span>
+                        </div>
+                     </div>
+                  )}
+                  <div ref={chatEndRef} />
                </div>
-               <form onSubmit={sendChatMessage} className="p-3 border-t flex gap-2">
-                  <input className="flex-1 bg-gray-100 rounded-full px-4 text-sm" placeholder="Ask anything..." value={chatInput} onChange={e => setChatInput(e.target.value)} />
-                  <button className="p-2 bg-indigo-600 text-white rounded-full"><Send size={16}/></button>
+
+               {/* Input Area */}
+               <form onSubmit={(e) => { e.preventDefault(); handleChatSubmit(); }} className="p-3 bg-white border-t border-gray-100 flex gap-2">
+                  <input 
+                     className="flex-1 bg-gray-50 rounded-full px-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" 
+                     placeholder="Type a message..." 
+                     value={chatInput} 
+                     onChange={e => setChatInput(e.target.value)} 
+                  />
+                  <button 
+                     type="submit" 
+                     disabled={!chatInput.trim()}
+                     className="p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors shadow-sm"
+                  >
+                     <Send size={16}/>
+                  </button>
                </form>
             </div>
          )}
       </div>
-
-      {/* Footer Link for Admin */}
-      <footer className="text-center py-6 text-gray-400 text-sm">
-         <button onClick={() => setView('admin')} className="hover:text-indigo-600">Admin Panel</button>
-      </footer>
     </div>
   );
 }
