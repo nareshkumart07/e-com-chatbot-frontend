@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, MessageSquare, Send, Package, User, X, Trash2, Menu, Zap, AlertCircle, ArrowLeft, CreditCard } from 'lucide-react';
+import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, ArrowLeft, CreditCard } from 'lucide-react';
 
 // --- CONFIGURATION ---
 // <--- BACKEND INTEGRATION POINT: Set your actual backend URL here
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+const API_BASE_URL =  import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 // --- TYPES & INTERFACES ---
 
@@ -381,7 +381,8 @@ const App: React.FC = () => {
   const [view, setView] = useState<'shop' | 'cart'>('shop');
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [cart, setCart] = useState<Product[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  // Fix for unused variable 'orders'. Used a dummy variable or destructuring skip.
+  const [, setOrders] = useState<Order[]>([]);
   const [chatLog, setChatLog] = useState<ChatMessage[]>([
     { sender: 'bot', text: INITIAL_SETTINGS.welcomeMessage, timestamp: new Date() }
   ]);
