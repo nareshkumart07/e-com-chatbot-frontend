@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, MessageSquare, Send, Package, User, BarChart2, Settings, Plus, X, Trash2, Menu, Zap } from 'lucide-react';
+import { ShoppingCart, MessageSquare, Send, Package, User, BarChart2, Settings, Plus, X, Trash2, Menu, Zap, AlertCircle } from 'lucide-react';
+
+// --- CONFIGURATION ---
+// <--- BACKEND INTEGRATION POINT: Set your actual backend URL here
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api'; 
 
 // --- TYPES & INTERFACES ---
 
@@ -57,7 +61,8 @@ interface DashboardStats {
   mostViewedProduct: string;
 }
 
-// --- MOCK DATA ---
+// --- MOCK DATA (FALLBACKS) ---
+// These are used if the backend server is offline or unreachable
 
 const FALLBACK_PRODUCTS: Product[] = [
   { id: 1, title: "Urban Explorer Backpack 2025", price: 119.95, category: "men's clothing", stock: 50, active: true, description: "Updated 2025 model for everyday use.", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=60" },
@@ -89,6 +94,52 @@ const SUGGESTED_QUESTIONS: string[] = [
   "Contact support"
 ];
 
+// --- API SERVICE ---
+// <--- BACKEND INTEGRATION POINT: All API calls happen here
+const apiService = {
+    // 1. Fetch Products
+    getProducts: async (): Promise<Product[] | null> => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/products`);
+            if (!response.ok) throw new Error('Network response was not ok');
+            return await response.json();
+        } catch (error) {
+            console.warn("Backend offline, using mock products:", error);
+            return null; // Signal to use fallback
+        }
+    },
+
+    // 2. Chat with Bot
+    sendChat: async (message: string, userId: string): Promise<any> => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    message, 
+                    context: { user: { id: userId, name: 'Web User' } } 
+                })
+            });
+            if (!response.ok) throw new Error('Chat failed');
+            return await response.json();
+        } catch (error) {
+            console.warn("Backend offline, using local chat logic:", error);
+            return null;
+        }
+    },
+
+    // 3. Admin Dashboard Data
+    getDashboard: async (): Promise<DashboardStats | null> => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/admin/dashboard`);
+            if (!response.ok) throw new Error('Dashboard failed');
+            return await response.json();
+        } catch (error) {
+            return null;
+        }
+    }
+};
+
 // --- COMPONENTS ---
 
 // 1. CHATBOT WIDGET
@@ -99,9 +150,10 @@ interface ChatWidgetProps {
   setIsOpen: (isOpen: boolean) => void;
   settings: AppSettings;
   suggestedQuestions: string[];
+  isOffline: boolean;
 }
 
-const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen, setIsOpen, settings, suggestedQuestions }) => {
+const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen, setIsOpen, settings, suggestedQuestions, isOffline }) => {
   const [input, setInput] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -131,11 +183,13 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center relative">
                 <MessageSquare size={18} />
-                <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-indigo-600 rounded-full"></div>
+                <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-indigo-600 rounded-full ${isOffline ? 'bg-orange-400' : 'bg-green-400'}`}></div>
               </div>
               <div>
                 <h3 className="font-bold text-base leading-tight">{settings.botName}</h3>
-                <span className="text-[10px] text-indigo-200 uppercase tracking-wider font-semibold">AI Assistant</span>
+                <span className="text-[10px] text-indigo-200 uppercase tracking-wider font-semibold">
+                    {isOffline ? 'Offline Mode' : 'AI Assistant'}
+                </span>
               </div>
             </div>
             <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white p-1 hover:bg-white/10 rounded-full transition-colors">
@@ -205,12 +259,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
           onClick={() => setIsOpen(true)}
           className="group w-full h-full bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95 animate-bounce-subtle"
         >
-          {/* Blinking Red Dot Feature */}
-          <span className="absolute -top-2 -right-2 flex h-4 w-4">
+           {/* Blinking Red Dot Feature */}
+           <span className="absolute -top-2 -right-2 flex h-4 w-4">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
           </span>
-          
           <MessageSquare size={28} className="group-hover:rotate-12 transition-transform" />
         </button>
       )}
@@ -250,11 +303,19 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => (
 interface DashboardProps {
   stats: DashboardStats;
   orders: Order[];
+  isOffline: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ stats, orders }) => {
+const Dashboard: React.FC<DashboardProps> = ({ stats, orders, isOffline }) => {
   return (
     <div className="space-y-6">
+      {isOffline && (
+        <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-xl flex items-center gap-3">
+             <AlertCircle size={20} />
+             <span className="text-sm font-medium">Backend Unreachable. Showing local demo data. Ensure server is running at port 5000.</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: "Total Revenue", value: `$${stats.revenue.toFixed(2)}`, icon: BarChart2, color: "bg-green-100 text-green-600" },
@@ -334,18 +395,42 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, orders }) => {
 const App: React.FC = () => {
   // --- STATE ---
   const [view, setView] = useState<'shop' | 'admin'>('shop');
-  // Removed unused setters to fix TS build errors
-  const [products] = useState<Product[]>(FALLBACK_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [cart, setCart] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [chatLog, setChatLog] = useState<ChatMessage[]>([
     { sender: 'bot', text: INITIAL_SETTINGS.welcomeMessage, timestamp: new Date() }
   ]);
   const [chatOpen, setChatOpen] = useState<boolean>(false);
-  // Removed unused setters to fix TS build errors
   const [settings] = useState<AppSettings>(INITIAL_SETTINGS);
   const [userId] = useState<string>("user_web_demo");
   const [isSidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [isBackendOffline, setIsBackendOffline] = useState<boolean>(false);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+      revenue: 0, totalOrders: 0, totalUsers: 1, totalChats: 1, mostViewedProduct: 'None'
+  });
+
+  // --- INITIALIZATION ---
+  useEffect(() => {
+    const initData = async () => {
+        // 1. Fetch Products
+        const remoteProducts = await apiService.getProducts();
+        if (remoteProducts) {
+            setProducts(remoteProducts);
+            setIsBackendOffline(false);
+        } else {
+            setIsBackendOffline(true);
+            setProducts(FALLBACK_PRODUCTS);
+        }
+
+        // 2. Fetch Stats (if admin)
+        if(view === 'admin') {
+            const stats = await apiService.getDashboard();
+            if(stats) setDashboardStats(stats);
+        }
+    };
+    initData();
+  }, [view]);
 
   // --- LOGIC ---
   
@@ -353,6 +438,8 @@ const App: React.FC = () => {
     setCart(prev => [...prev, product]);
   };
 
+  // Local Order Processing (Fallback or Hybrid)
+  // <--- BACKEND INTEGRATION POINT: Ideally this should POST to /api/orders
   const processOrder = (): Order | null => {
     if (cart.length === 0) return null;
     const total = cart.reduce((acc, i) => acc + i.price, 0);
@@ -375,99 +462,89 @@ const App: React.FC = () => {
     const userMsg: ChatMessage = { sender: 'user', text: message, timestamp: new Date() };
     setChatLog(prev => [...prev, userMsg]);
 
-    // 2. Simulate Backend Logic
     let reply = "";
     const lowerMsg = message.toLowerCase();
 
-    // Delay to simulate network
-    await new Promise(r => setTimeout(r, 600));
-
-    // A. Cart Logic
-    if (lowerMsg.includes("add to cart") || lowerMsg.includes("buy")) {
-      const product = products.find(p => lowerMsg.includes(p.title.toLowerCase()) || lowerMsg.includes(p.category.toLowerCase().split("'")[0]));
-      if (product) {
-        setCart(prev => [...prev, product]);
-        reply = `I've added '${product.title}' to your cart. Total items: ${cart.length + 1}.`;
-      } else {
-        reply = "I couldn't find that product directly. Try checking our catalog above!";
-      }
-    }
+    // 2. Try Backend AI First
+    const backendResponse = await apiService.sendChat(message, userId);
     
-    // B. View Cart
-    else if (lowerMsg.includes("show cart") || lowerMsg.includes("my cart")) {
-      if (cart.length === 0) reply = "Your cart is currently empty.";
-      else {
-        const total = cart.reduce((acc, i) => acc + i.price, 0).toFixed(2);
-        reply = `You have ${cart.length} items totaling $${total}. Say 'Place Order' to checkout.`;
-      }
-    }
-    // Handle "clear cart"
-    else if (lowerMsg.includes("clear cart") || lowerMsg.includes("empty cart")) {
-        setCart([]);
-        reply = "I've emptied your cart.";
-    }
-
-    // C. Place Order
-    else if (lowerMsg.includes("place order") || lowerMsg.includes("checkout")) {
-      if (cart.length === 0) {
-        reply = "Your cart is empty. Add some cool gear first!";
-      } else {
-        const order = processOrder();
-        if (order) {
-            reply = `Order #${order.id} placed successfully! It will arrive by ${order.deliveryDate}.`;
-        } else {
-            reply = "Something went wrong while placing the order.";
+    if (backendResponse && backendResponse.text) {
+        // Success from backend
+        reply = backendResponse.text;
+        
+        // Handle specific actions from backend if structured
+        if (backendResponse.type === 'cart-update' || lowerMsg.includes('add to cart')) {
+             // Logic to sync cart if backend handles it, 
+             // but here we might still need local matching for the UI
+             const product = products.find(p => lowerMsg.includes(p.title.toLowerCase()) || lowerMsg.includes(p.category.toLowerCase().split("'")[0]));
+             if(product) {
+                 setCart(prev => [...prev, product]);
+                 // Override backend text slightly to confirm local action if needed
+             }
         }
-      }
-    }
+    } else {
+        // Fallback to Local Logic (if backend is offline)
+        setIsBackendOffline(true);
+        await new Promise(r => setTimeout(r, 600)); // Simulate delay
 
-    // D. Order Tracking
-    else if (lowerMsg.includes("track")) {
-      const match = lowerMsg.match(/#?(\d{4,})/);
-      if (match) {
-        const order = orders.find(o => o.id === match[1]);
-        if (order) reply = `Order #${order.id} is currently ${order.status}.`;
-        else reply = "I couldn't find an order with that ID.";
-      } else {
-        reply = "Please provide the Order ID (e.g., 'Track order 12345').";
-      }
-    }
-
-    // E. New smart handlers
-    else if (lowerMsg.includes("best selling") || lowerMsg.includes("best seller")) {
-        reply = "Our best-selling item is the 'Urban Explorer Backpack'. Would you like to add it to your cart?";
-    }
-    else if (lowerMsg.includes("contact") || lowerMsg.includes("support")) {
-        reply = `You can reach our human support team at ${settings.supportEmail}.`;
-    }
-
-    // F. Fallback / AI Simulation
-    else {
-      const faqMatch = settings.faqs.find(f => lowerMsg.includes(f.question));
-      if (faqMatch) {
-        reply = faqMatch.answer;
-      } else {
-        const randomResponses = [
-          "I can help you browse products, check your cart, or track an order.",
-          "That sounds interesting! Have you seen our new Urban Explorer Backpack?",
-          "I'm currently running in 'Demo Mode', so my brain is a bit limited, but I can help you shop!",
-          "Could you rephrase that? I'm best at handling shopping requests."
-        ];
-        reply = randomResponses[Math.floor(Math.random() * randomResponses.length)];
-      }
+        // A. Cart Logic
+        if (lowerMsg.includes("add to cart") || lowerMsg.includes("buy")) {
+            const product = products.find(p => lowerMsg.includes(p.title.toLowerCase()) || lowerMsg.includes(p.category.toLowerCase().split("'")[0]));
+            if (product) {
+                setCart(prev => [...prev, product]);
+                reply = `I've added '${product.title}' to your cart. Total items: ${cart.length + 1}.`;
+            } else {
+                reply = "I couldn't find that product directly. Try checking our catalog above!";
+            }
+        }
+        // B. View Cart
+        else if (lowerMsg.includes("show cart") || lowerMsg.includes("my cart")) {
+            if (cart.length === 0) reply = "Your cart is currently empty.";
+            else {
+                const total = cart.reduce((acc, i) => acc + i.price, 0).toFixed(2);
+                reply = `You have ${cart.length} items totaling $${total}. Say 'Place Order' to checkout.`;
+            }
+        }
+        // C. Place Order
+        else if (lowerMsg.includes("place order") || lowerMsg.includes("checkout")) {
+            if (cart.length === 0) {
+                reply = "Your cart is empty. Add some cool gear first!";
+            } else {
+                const order = processOrder();
+                if (order) reply = `Order #${order.id} placed successfully! It will arrive by ${order.deliveryDate}.`;
+                else reply = "Error placing order.";
+            }
+        }
+        // D. Clear Cart
+        else if (lowerMsg.includes("clear cart") || lowerMsg.includes("empty cart")) {
+            setCart([]);
+            reply = "I've emptied your cart.";
+        }
+        // E. Smart Handlers
+        else if (lowerMsg.includes("best selling")) {
+            reply = "Our best-selling item is the 'Urban Explorer Backpack'. Would you like to add it to your cart?";
+        }
+        else if (lowerMsg.includes("contact") || lowerMsg.includes("support")) {
+            reply = `You can reach our human support team at ${settings.supportEmail}.`;
+        }
+        // F. Fallback
+        else {
+            const faqMatch = settings.faqs.find(f => lowerMsg.includes(f.question));
+            reply = faqMatch ? faqMatch.answer : "I'm running in offline mode. I can help you browse products and manage your cart!";
+        }
     }
 
     setChatLog(prev => [...prev, { sender: 'bot', text: reply, timestamp: new Date() }]);
   };
 
-  // Calculate Dashboard Stats
-  const stats: DashboardStats = {
+  // Calculate Dashboard Stats (Local fallback if offline)
+  const stats: DashboardStats = isBackendOffline ? {
     revenue: orders.reduce((sum, order) => sum + (order.total || 0), 0),
     totalOrders: orders.length,
-    totalUsers: 1, // Single user demo
+    totalUsers: 1,
     totalChats: chatLog.length,
-    mostViewedProduct: "Urban Explorer Backpack" // Hardcoded for demo
-  };
+    mostViewedProduct: "Urban Explorer Backpack"
+  } : dashboardStats;
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
@@ -566,7 +643,7 @@ const App: React.FC = () => {
                    <Settings size={16} /> Settings
                 </button>
              </div>
-             <Dashboard stats={stats} orders={orders} />
+             <Dashboard stats={stats} orders={orders} isOffline={isBackendOffline} />
              
              {/* Product Management Section */}
              <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -617,6 +694,7 @@ const App: React.FC = () => {
         setIsOpen={setChatOpen} 
         settings={settings}
         suggestedQuestions={SUGGESTED_QUESTIONS}
+        isOffline={isBackendOffline}
       />
 
     </div>
