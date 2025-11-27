@@ -334,14 +334,16 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, orders }) => {
 const App: React.FC = () => {
   // --- STATE ---
   const [view, setView] = useState<'shop' | 'admin'>('shop');
-  const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+  // Removed unused setters to fix TS build errors
+  const [products] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [cart, setCart] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [chatLog, setChatLog] = useState<ChatMessage[]>([
     { sender: 'bot', text: INITIAL_SETTINGS.welcomeMessage, timestamp: new Date() }
   ]);
   const [chatOpen, setChatOpen] = useState<boolean>(false);
-  const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
+  // Removed unused setters to fix TS build errors
+  const [settings] = useState<AppSettings>(INITIAL_SETTINGS);
   const [userId] = useState<string>("user_web_demo");
   const [isSidebarOpen, setSidebarOpen] = useState<boolean>(false);
 
