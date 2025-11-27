@@ -447,9 +447,35 @@ const App: React.FC = () => {
     let handledLocally = false;
 
     // --- PRIORITIZE LOCAL CART INTENT ---
-    // If the user asks about the cart, we look at the LOCAL state first.
-    // This fixes the issue where the backend doesn't know about the frontend cart.
-    if (lowerMsg.includes("show cart") || lowerMsg.includes("my cart") || lowerMsg.includes("in cart")) {
+    
+    // 1. Clear Cart (Highest Priority Local Action)
+    if (lowerMsg.includes("clear cart") || lowerMsg.includes("empty cart")) {
+        setCart([]);
+        reply = "I've emptied your cart.";
+        handledLocally = true;
+    }
+    
+    // 2. Place Order (High Priority Local Action)
+    else if (lowerMsg.includes("place order") || lowerMsg.includes("checkout")) {
+        if (cart.length === 0) {
+            reply = "Your cart is empty. Add some cool gear first!";
+        } else {
+            const order = processOrder();
+            if (order) reply = `Order #${order.id} placed successfully! It will arrive by ${order.deliveryDate}.`;
+            else reply = "Error placing order.";
+        }
+        handledLocally = true;
+    }
+    
+    // 3. Show Cart (Check this AFTER Clear/Order, and ensure it's not an 'Add' intent)
+    // We explicitly exclude action verbs so "Add to my cart" falls through to the backend/fallback logic
+    else if (
+        (lowerMsg.includes("show cart") || lowerMsg.includes("my cart") || lowerMsg.includes("in cart")) &&
+        !lowerMsg.includes("add") && 
+        !lowerMsg.includes("buy") &&
+        !lowerMsg.includes("place") &&
+        !lowerMsg.includes("checkout")
+    ) {
         if (cart.length === 0) reply = "Your cart is currently empty.";
         else {
             const itemsList = cart.map(i => i.title).join(', ');
@@ -458,14 +484,8 @@ const App: React.FC = () => {
         }
         handledLocally = true;
     }
-    // Handle "clear cart" locally
-    else if (lowerMsg.includes("clear cart") || lowerMsg.includes("empty cart")) {
-        setCart([]);
-        reply = "I've emptied your cart.";
-        handledLocally = true;
-    }
 
-    // 2. Try Backend AI (Only if not handled locally)
+    // 4. Try Backend AI (Only if not handled locally)
     if (!handledLocally) {
         const backendResponse = await apiService.sendChat(message, userId);
         
@@ -495,24 +515,14 @@ const App: React.FC = () => {
                     reply = "I couldn't find that product directly. Try checking our catalog above!";
                 }
             }
-            // B. Place Order
-            else if (lowerMsg.includes("place order") || lowerMsg.includes("checkout")) {
-                if (cart.length === 0) {
-                    reply = "Your cart is empty. Add some cool gear first!";
-                } else {
-                    const order = processOrder();
-                    if (order) reply = `Order #${order.id} placed successfully! It will arrive by ${order.deliveryDate}.`;
-                    else reply = "Error placing order.";
-                }
-            }
-            // C. Smart Handlers
+            // B. Smart Handlers
             else if (lowerMsg.includes("best selling")) {
                 reply = "Our best-selling item is the 'Urban Explorer Backpack'. Would you like to add it to your cart?";
             }
             else if (lowerMsg.includes("contact") || lowerMsg.includes("support")) {
                 reply = `You can reach our human support team at ${settings.supportEmail}.`;
             }
-            // D. Fallback
+            // C. Fallback
             else {
                 const faqMatch = settings.faqs.find(f => lowerMsg.includes(f.question));
                 reply = faqMatch ? faqMatch.answer : "I'm running in offline mode. I can help you browse products and manage your cart!";
