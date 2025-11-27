@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, ArrowLeft, CreditCard } from 'lucide-react';
+import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, ArrowLeft, CreditCard, Info } from 'lucide-react';
 
 // --- CONFIGURATION ---
 // <--- BACKEND INTEGRATION POINT: Set your actual backend URL here
+const DEMO_MODE = true; // Set to true for company presentation (uses mock data instantly)
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 // --- TYPES & INTERFACES ---
@@ -71,17 +72,21 @@ const INITIAL_SETTINGS: AppSettings = {
   botActive: true,
   welcomeMessage: "Hello! I'm NexaBot. You can ask me to 'Add items to cart', 'Check stock', or 'Track order'. How can I help?",
   faqs: [
-    { question: "shipping", answer: "We ship within 24 hours." },
-    { question: "return", answer: "Returns accepted within 30 days." }
+    { question: "return", answer: "We offer a 30-day return policy for all unused items in original packaging. Refunds are processed in 5-7 days." },
+    { question: "shipping", answer: "Standard shipping takes 3-5 business days. Express shipping (1-2 days) is available at checkout." },
+    { question: "international", answer: "Yes, we ship globally! International delivery times vary by location but typically take 7-14 business days." },
+    { question: "payment", answer: "We accept all major credit cards (Visa, MasterCard, Amex), PayPal, and Apple Pay." },
+    { question: "track", answer: "To track your order, please provide your Order ID (e.g., 'Track order 12345') or check your email." },
+    { question: "support", answer: "You can reach our 24/7 human support team at support@nexa.com." }
   ]
 };
 
 const SUGGESTED_QUESTIONS: string[] = [
-  "Show my cart",
+  "What is your return policy?",
+  "How long does shipping take?",
+  "Do you ship internationally?",
+  "Payment methods?",
   "Track my order",
-  "Shipping policy",
-  "Best selling items",
-  "Clear my cart",
   "Contact support"
 ];
 
@@ -89,6 +94,7 @@ const SUGGESTED_QUESTIONS: string[] = [
 const apiService = {
     // 1. Fetch Products
     getProducts: async (): Promise<Product[] | null> => {
+        if (DEMO_MODE) return null; // Skip fetch in demo mode
         try {
             const response = await fetch(`${API_BASE_URL}/products`);
             if (!response.ok) throw new Error('Network response was not ok');
@@ -101,6 +107,7 @@ const apiService = {
 
     // 2. Chat with Bot
     sendChat: async (message: string, userId: string): Promise<any> => {
+        if (DEMO_MODE) return null; // Skip fetch in demo mode
         try {
             const response = await fetch(`${API_BASE_URL}/chat`, {
                 method: 'POST',
@@ -162,12 +169,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center relative">
                 <MessageSquare size={18} />
-                <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-indigo-600 rounded-full ${isOffline ? 'bg-orange-400' : 'bg-green-400'}`}></div>
+                <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-indigo-600 rounded-full ${isOffline ? 'bg-blue-400' : 'bg-green-400'}`}></div>
               </div>
               <div>
                 <h3 className="font-bold text-base leading-tight">{settings.botName}</h3>
                 <span className="text-[10px] text-indigo-200 uppercase tracking-wider font-semibold">
-                    {isOffline ? 'Offline Mode' : 'AI Assistant'}
+                    {isOffline ? 'Demo Mode' : 'AI Assistant'}
                 </span>
               </div>
             </div>
@@ -598,33 +605,43 @@ const App: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
         {view === 'shop' && (
-          <div className="animate-in fade-in duration-500">
-            {/* Hero Section */}
-            <div className="bg-gradient-to-r from-gray-900 to-indigo-900 rounded-3xl p-8 mb-10 text-white shadow-xl relative overflow-hidden">
-               <div className="relative z-10 max-w-xl">
-                 <h1 className="text-4xl font-extrabold mb-4 tracking-tight">Summer Collection 2025</h1>
-                 <p className="text-indigo-100 mb-6 text-lg">Discover the latest trends in techwear and accessories. Powered by AI shopping assistance.</p>
-                 <button onClick={() => setChatOpen(true)} className="bg-white text-indigo-900 px-6 py-3 rounded-full font-bold shadow-lg hover:bg-indigo-50 transition-colors">
-                   Chat with {settings.botName}
-                 </button>
-               </div>
-               <div className="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-indigo-500/20 to-transparent pointer-events-none"></div>
-            </div>
+            <div className="space-y-6">
+                 {/* Demo Mode Banner */}
+                 {isBackendOffline && (
+                    <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-xl flex items-center gap-3">
+                         <Info size={20} />
+                         <span className="text-sm font-medium">Demo Mode Active. Using simulated data for smooth presentation.</span>
+                    </div>
+                 )}
 
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Featured Products</h2>
-              <div className="flex gap-2">
-                 <button className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">Filter</button>
-                 <button className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">Sort</button>
-              </div>
-            </div>
+                 <div className="animate-in fade-in duration-500">
+                    {/* Hero Section */}
+                    <div className="bg-gradient-to-r from-gray-900 to-indigo-900 rounded-3xl p-8 mb-10 text-white shadow-xl relative overflow-hidden">
+                       <div className="relative z-10 max-w-xl">
+                         <h1 className="text-4xl font-extrabold mb-4 tracking-tight">Summer Collection 2025</h1>
+                         <p className="text-indigo-100 mb-6 text-lg">Discover the latest trends in techwear and accessories. Powered by AI shopping assistance.</p>
+                         <button onClick={() => setChatOpen(true)} className="bg-white text-indigo-900 px-6 py-3 rounded-full font-bold shadow-lg hover:bg-indigo-50 transition-colors">
+                           Chat with {settings.botName}
+                         </button>
+                       </div>
+                       <div className="absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-indigo-500/20 to-transparent pointer-events-none"></div>
+                    </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {products.map(product => (
-                <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
-              ))}
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-2xl font-bold text-gray-900">Featured Products</h2>
+                      <div className="flex gap-2">
+                         <button className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">Filter</button>
+                         <button className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">Sort</button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {products.map(product => (
+                        <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
+                      ))}
+                    </div>
+                  </div>
             </div>
-          </div>
         )}
 
         {view === 'cart' && (
