@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, ShoppingCart, User, X, 
-  Send, Loader2, Plus, ServerCrash
+  Send, Loader2, Plus, ServerCrash, ChevronDown, Zap
 } from 'lucide-react';
 
 // --- Configuration ---
@@ -109,7 +109,6 @@ export default function App() {
 
       } catch (err: any) {
         console.error("Critical Network Error:", err);
-        // Display a helpful error message for debugging
         setError(err.message || "Failed to connect to server");
       } finally {
         setLoading(false);
@@ -248,7 +247,7 @@ export default function App() {
       </nav>
 
       {/* Content */}
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-6 max-w-7xl mx-auto w-full mb-20 sm:mb-0">
          {view === 'home' && (
            <>
              {products.length === 0 && !loading && !error ? (
@@ -384,12 +383,19 @@ export default function App() {
          )}
       </main>
 
-      {/* Chat Widget */}
-      <div className={`fixed bottom-6 right-6 z-50 transition-all duration-300 ${isChatOpen ? 'w-[380px] h-[600px] opacity-100' : 'w-16 h-16'}`}>
+      {/* Chat Widget (Mobile Friendly Redesign) */}
+      <div 
+        className={`fixed z-50 transition-all duration-300 ease-in-out shadow-2xl
+          ${isChatOpen 
+             ? 'inset-0 sm:inset-auto sm:bottom-6 sm:right-6 sm:w-[380px] sm:h-[650px] sm:rounded-2xl' 
+             : 'bottom-6 right-6 w-16 h-16 rounded-full'
+          }
+        `}
+      >
          {!isChatOpen && (
             <button 
               onClick={() => setIsChatOpen(true)} 
-              className="w-full h-full bg-indigo-600 rounded-full text-white shadow-xl flex items-center justify-center hover:scale-110 hover:bg-indigo-700 transition-all"
+              className="w-full h-full bg-indigo-600 rounded-full text-white shadow-xl flex items-center justify-center hover:scale-110 hover:bg-indigo-700 transition-all active:scale-95"
             >
                <MessageSquare size={28} />
                <span className="absolute -top-1 -right-1 flex h-4 w-4">
@@ -398,10 +404,11 @@ export default function App() {
                </span>
             </button>
          )}
+         
          {isChatOpen && (
-            <div className="bg-white w-full h-full rounded-2xl shadow-2xl flex flex-col border border-gray-200 overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-200">
+            <div className="bg-white w-full h-full sm:rounded-2xl flex flex-col border border-gray-200 overflow-hidden">
                {/* Header */}
-               <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 p-4 text-white flex justify-between items-center shadow-md">
+               <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 p-4 text-white flex justify-between items-center shadow-md shrink-0">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
@@ -410,76 +417,30 @@ export default function App() {
                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-indigo-700 rounded-full"></span>
                     </div>
                     <div>
-                       <h3 className="font-bold text-sm">Nexa AI Assistant</h3>
-                       <p className="text-xs text-indigo-200">Online • Typically replies instantly</p>
+                       <h3 className="font-bold text-base">Nexa Assistant</h3>
+                       <p className="text-xs text-indigo-200 flex items-center gap-1">
+                         <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+                         Online
+                       </p>
                     </div>
                   </div>
-                  <button onClick={() => setIsChatOpen(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors"><X size={18}/></button>
+                  <button 
+                    onClick={() => setIsChatOpen(false)} 
+                    className="p-2 hover:bg-white/20 rounded-full transition-colors active:scale-90"
+                  >
+                    <ChevronDown size={24} className="sm:hidden" />
+                    <X size={20} className="hidden sm:block" />
+                  </button>
                </div>
 
                {/* Messages Area */}
-               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
+               <div className="flex-1 overflow-y-auto p-4 space-y-5 bg-gray-50/50 scroll-smooth">
+                  <div className="text-center py-4">
+                     <span className="text-xs font-medium text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+                       Today
+                     </span>
+                  </div>
+                  
                   {messages.map((m, i) => (
-                     <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                        <div className={`p-3 rounded-2xl max-w-[85%] text-sm shadow-sm ${
-                           m.sender === 'user' 
-                              ? 'bg-indigo-600 text-white rounded-br-none' 
-                              : 'bg-white border border-gray-100 text-gray-700 rounded-bl-none'
-                        }`}>
-                           {m.text}
-                        </div>
-                        
-                        {/* Render Options Chips if available */}
-                        {m.type === 'options' && m.options && (
-                           <div className="flex flex-wrap gap-2 mt-2 max-w-[90%]">
-                              {m.options.map((opt, idx) => (
-                                 <button 
-                                    key={idx}
-                                    onClick={() => handleChatSubmit(opt)}
-                                    className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-full hover:bg-indigo-100 hover:border-indigo-300 transition-colors"
-                                 >
-                                    {opt}
-                                 </button>
-                              ))}
-                           </div>
-                        )}
-                        
-                        <span className="text-[10px] text-gray-400 mt-1 px-1">
-                           {m.sender === 'bot' ? 'AI Assistant' : 'You'} • {m.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </span>
-                     </div>
-                  ))}
-                  {isTyping && (
-                     <div className="flex items-start">
-                        <div className="bg-gray-100 p-3 rounded-2xl rounded-bl-none text-gray-400 text-xs flex gap-1 items-center">
-                           <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
-                           <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-75"></span>
-                           <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce delay-150"></span>
-                        </div>
-                     </div>
-                  )}
-                  <div ref={chatEndRef} />
-               </div>
-
-               {/* Input Area */}
-               <form onSubmit={(e) => { e.preventDefault(); handleChatSubmit(); }} className="p-3 bg-white border-t border-gray-100 flex gap-2">
-                  <input 
-                     className="flex-1 bg-gray-50 rounded-full px-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" 
-                     placeholder="Type a message..." 
-                     value={chatInput} 
-                     onChange={e => setChatInput(e.target.value)} 
-                  />
-                  <button 
-                     type="submit" 
-                     disabled={!chatInput.trim()}
-                     className="p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors shadow-sm"
-                  >
-                     <Send size={16}/>
-                  </button>
-               </form>
-            </div>
-         )}
-      </div>
-    </div>
-  );
-}
+                     <div key={i} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                        <div className={`p-3.5 sm:p-3 rounde
