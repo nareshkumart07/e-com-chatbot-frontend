@@ -3,6 +3,7 @@ import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, Arrow
 
 // --- CONFIGURATION ---
 // <--- BACKEND INTEGRATION POINT: Set your actual backend URL here
+const DEMO_MODE = false; // Set to true for company presentation (uses mock data instantly)
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 // --- TYPES & INTERFACES ---
