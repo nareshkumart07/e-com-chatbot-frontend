@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, MessageSquare, Send, Package, User, BarChart2, Settings, Plus, X, Trash2, Menu, Zap, AlertCircle } from 'lucide-react';
+import { ShoppingCart, MessageSquare, Send, Package, User, X, Trash2, Menu, Zap, AlertCircle, ArrowLeft, CreditCard } from 'lucide-react';
 
 // --- CONFIGURATION ---
 // <--- BACKEND INTEGRATION POINT: Set your actual backend URL here
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api'; 
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 // --- TYPES & INTERFACES ---
 
@@ -53,16 +53,7 @@ interface AppSettings {
   faqs: Faq[];
 }
 
-interface DashboardStats {
-  revenue: number;
-  totalOrders: number;
-  totalUsers: number;
-  totalChats: number;
-  mostViewedProduct: string;
-}
-
 // --- MOCK DATA (FALLBACKS) ---
-// These are used if the backend server is offline or unreachable
 
 const FALLBACK_PRODUCTS: Product[] = [
   { id: 1, title: "Urban Explorer Backpack 2025", price: 119.95, category: "men's clothing", stock: 50, active: true, description: "Updated 2025 model for everyday use.", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=60" },
@@ -95,7 +86,6 @@ const SUGGESTED_QUESTIONS: string[] = [
 ];
 
 // --- API SERVICE ---
-// <--- BACKEND INTEGRATION POINT: All API calls happen here
 const apiService = {
     // 1. Fetch Products
     getProducts: async (): Promise<Product[] | null> => {
@@ -124,17 +114,6 @@ const apiService = {
             return await response.json();
         } catch (error) {
             console.warn("Backend offline, using local chat logic:", error);
-            return null;
-        }
-    },
-
-    // 3. Admin Dashboard Data
-    getDashboard: async (): Promise<DashboardStats | null> => {
-        try {
-            const response = await fetch(`${API_BASE_URL}/admin/dashboard`);
-            if (!response.ok) throw new Error('Dashboard failed');
-            return await response.json();
-        } catch (error) {
             return null;
         }
     }
@@ -299,102 +278,107 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => (
   </div>
 );
 
-// 3. ADMIN DASHBOARD
-interface DashboardProps {
-  stats: DashboardStats;
-  orders: Order[];
-  isOffline: boolean;
+// 3. CART VIEW (Replaces Admin Dashboard)
+interface CartViewProps {
+    cart: Product[];
+    onRemove: (index: number) => void;
+    onCheckout: () => void;
+    onContinueShopping: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ stats, orders, isOffline }) => {
-  return (
-    <div className="space-y-6">
-      {isOffline && (
-        <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-xl flex items-center gap-3">
-             <AlertCircle size={20} />
-             <span className="text-sm font-medium">Backend Unreachable. Showing local demo data. Ensure server is running at port 5000.</span>
-        </div>
-      )}
+const CartView: React.FC<CartViewProps> = ({ cart, onRemove, onCheckout, onContinueShopping }) => {
+    const total = cart.reduce((acc, item) => acc + item.price, 0);
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Revenue", value: `$${stats.revenue.toFixed(2)}`, icon: BarChart2, color: "bg-green-100 text-green-600" },
-          { label: "Total Orders", value: stats.totalOrders, icon: Package, color: "bg-blue-100 text-blue-600" },
-          { label: "Active Users", value: stats.totalUsers, icon: User, color: "bg-purple-100 text-purple-600" },
-          { label: "Chat Interactions", value: stats.totalChats, icon: MessageSquare, color: "bg-orange-100 text-orange-600" },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">{stat.label}</p>
-              <h3 className="text-2xl font-bold text-gray-800">{stat.value}</h3>
+    return (
+        <div className="animate-in fade-in duration-300">
+            <div className="mb-6 flex items-center gap-4">
+                 <button onClick={onContinueShopping} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <ArrowLeft size={20} className="text-gray-600"/>
+                 </button>
+                 <h1 className="text-3xl font-bold text-gray-900">Your Shopping Cart</h1>
             </div>
-            <div className={`p-3 rounded-lg ${stat.color}`}>
-              <stat.icon size={20} />
-            </div>
-          </div>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4">Recent Orders</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-gray-500">
-              <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3">Order ID</th>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.slice(0, 5).map(order => (
-                  <tr key={order.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">#{order.id}</td>
-                    <td className="px-4 py-3">{order.customer.name}</td>
-                    <td className="px-4 py-3">${order.total}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        order.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                        order.status === 'Confirmed' ? 'bg-blue-100 text-blue-800' :
-                        order.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {order.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {orders.length === 0 && (
-                  <tr><td colSpan={4} className="text-center py-4">No orders yet</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+            {cart.length === 0 ? (
+                <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-gray-100">
+                    <div className="bg-indigo-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <ShoppingCart size={32} className="text-indigo-400" />
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-800 mb-2">Your cart is empty</h2>
+                    <p className="text-gray-500 mb-6">Looks like you haven't added any items yet.</p>
+                    <button 
+                        onClick={onContinueShopping}
+                        className="bg-indigo-600 text-white px-8 py-3 rounded-full font-bold hover:bg-indigo-700 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 duration-200"
+                    >
+                        Start Shopping
+                    </button>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Cart Items List */}
+                    <div className="lg:col-span-2 space-y-4">
+                        {cart.map((item, index) => (
+                            <div key={`${item.id}-${index}`} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4 items-center">
+                                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                    <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-bold text-gray-800">{item.title}</h3>
+                                    <p className="text-sm text-gray-500 capitalize">{item.category}</p>
+                                    <div className="mt-1 font-bold text-indigo-600">${item.price}</div>
+                                </div>
+                                <button 
+                                    onClick={() => onRemove(index)}
+                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                >
+                                    <Trash2 size={20} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
 
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4">Top Performing Products</h3>
-           <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                 <span className="font-medium text-gray-700">Most Viewed</span>
-                 <span className="font-bold text-indigo-600">{stats.mostViewedProduct}</span>
-              </div>
-              <div className="h-48 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400 text-sm">
-                 Activity Chart Placeholder
-              </div>
-           </div>
+                    {/* Order Summary */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 sticky top-24">
+                            <h3 className="text-lg font-bold text-gray-900 mb-6">Order Summary</h3>
+                            <div className="space-y-3 mb-6">
+                                <div className="flex justify-between text-gray-600">
+                                    <span>Subtotal</span>
+                                    <span>${total.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-gray-600">
+                                    <span>Shipping</span>
+                                    <span className="text-green-600">Free</span>
+                                </div>
+                                <div className="flex justify-between text-gray-600">
+                                    <span>Tax (Estimate)</span>
+                                    <span>${(total * 0.08).toFixed(2)}</span>
+                                </div>
+                                <div className="border-t border-gray-100 pt-3 flex justify-between font-bold text-lg text-gray-900">
+                                    <span>Total</span>
+                                    <span>${(total * 1.08).toFixed(2)}</span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={onCheckout}
+                                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg flex items-center justify-center gap-2"
+                            >
+                                <CreditCard size={18} /> Checkout
+                            </button>
+                            <p className="text-xs text-gray-400 text-center mt-4">
+                                Secure Checkout powered by Nexa Pay
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 // 4. MAIN APP COMPONENT
 const App: React.FC = () => {
   // --- STATE ---
-  const [view, setView] = useState<'shop' | 'admin'>('shop');
+  const [view, setView] = useState<'shop' | 'cart'>('shop');
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [cart, setCart] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -406,9 +390,6 @@ const App: React.FC = () => {
   const [userId] = useState<string>("user_web_demo");
   const [isSidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [isBackendOffline, setIsBackendOffline] = useState<boolean>(false);
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
-      revenue: 0, totalOrders: 0, totalUsers: 1, totalChats: 1, mostViewedProduct: 'None'
-  });
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -422,15 +403,9 @@ const App: React.FC = () => {
             setIsBackendOffline(true);
             setProducts(FALLBACK_PRODUCTS);
         }
-
-        // 2. Fetch Stats (if admin)
-        if(view === 'admin') {
-            const stats = await apiService.getDashboard();
-            if(stats) setDashboardStats(stats);
-        }
     };
     initData();
-  }, [view]);
+  }, []);
 
   // --- LOGIC ---
   
@@ -438,8 +413,10 @@ const App: React.FC = () => {
     setCart(prev => [...prev, product]);
   };
 
-  // Local Order Processing (Fallback or Hybrid)
-  // <--- BACKEND INTEGRATION POINT: Ideally this should POST to /api/orders
+  const handleRemoveFromCart = (indexToRemove: number) => {
+    setCart(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
   const processOrder = (): Order | null => {
     if (cart.length === 0) return null;
     const total = cart.reduce((acc, i) => acc + i.price, 0);
@@ -464,87 +441,86 @@ const App: React.FC = () => {
 
     let reply = "";
     const lowerMsg = message.toLowerCase();
-
-    // 2. Try Backend AI First
-    const backendResponse = await apiService.sendChat(message, userId);
     
-    if (backendResponse && backendResponse.text) {
-        // Success from backend
-        reply = backendResponse.text;
-        
-        // Handle specific actions from backend if structured
-        if (backendResponse.type === 'cart-update' || lowerMsg.includes('add to cart')) {
-             // Logic to sync cart if backend handles it, 
-             // but here we might still need local matching for the UI
-             const product = products.find(p => lowerMsg.includes(p.title.toLowerCase()) || lowerMsg.includes(p.category.toLowerCase().split("'")[0]));
-             if(product) {
-                 setCart(prev => [...prev, product]);
-                 // Override backend text slightly to confirm local action if needed
-             }
-        }
-    } else {
-        // Fallback to Local Logic (if backend is offline)
-        setIsBackendOffline(true);
-        await new Promise(r => setTimeout(r, 600)); // Simulate delay
+    // Flag to see if we solved it locally (High priority for Cart reads)
+    let handledLocally = false;
 
-        // A. Cart Logic
-        if (lowerMsg.includes("add to cart") || lowerMsg.includes("buy")) {
-            const product = products.find(p => lowerMsg.includes(p.title.toLowerCase()) || lowerMsg.includes(p.category.toLowerCase().split("'")[0]));
-            if (product) {
-                setCart(prev => [...prev, product]);
-                reply = `I've added '${product.title}' to your cart. Total items: ${cart.length + 1}.`;
-            } else {
-                reply = "I couldn't find that product directly. Try checking our catalog above!";
-            }
-        }
-        // B. View Cart
-        else if (lowerMsg.includes("show cart") || lowerMsg.includes("my cart")) {
-            if (cart.length === 0) reply = "Your cart is currently empty.";
-            else {
-                const total = cart.reduce((acc, i) => acc + i.price, 0).toFixed(2);
-                reply = `You have ${cart.length} items totaling $${total}. Say 'Place Order' to checkout.`;
-            }
-        }
-        // C. Place Order
-        else if (lowerMsg.includes("place order") || lowerMsg.includes("checkout")) {
-            if (cart.length === 0) {
-                reply = "Your cart is empty. Add some cool gear first!";
-            } else {
-                const order = processOrder();
-                if (order) reply = `Order #${order.id} placed successfully! It will arrive by ${order.deliveryDate}.`;
-                else reply = "Error placing order.";
-            }
-        }
-        // D. Clear Cart
-        else if (lowerMsg.includes("clear cart") || lowerMsg.includes("empty cart")) {
-            setCart([]);
-            reply = "I've emptied your cart.";
-        }
-        // E. Smart Handlers
-        else if (lowerMsg.includes("best selling")) {
-            reply = "Our best-selling item is the 'Urban Explorer Backpack'. Would you like to add it to your cart?";
-        }
-        else if (lowerMsg.includes("contact") || lowerMsg.includes("support")) {
-            reply = `You can reach our human support team at ${settings.supportEmail}.`;
-        }
-        // F. Fallback
+    // --- PRIORITIZE LOCAL CART INTENT ---
+    // If the user asks about the cart, we look at the LOCAL state first.
+    // This fixes the issue where the backend doesn't know about the frontend cart.
+    if (lowerMsg.includes("show cart") || lowerMsg.includes("my cart") || lowerMsg.includes("in cart")) {
+        if (cart.length === 0) reply = "Your cart is currently empty.";
         else {
-            const faqMatch = settings.faqs.find(f => lowerMsg.includes(f.question));
-            reply = faqMatch ? faqMatch.answer : "I'm running in offline mode. I can help you browse products and manage your cart!";
+            const itemsList = cart.map(i => i.title).join(', ');
+            const total = cart.reduce((acc, i) => acc + i.price, 0).toFixed(2);
+            reply = `You have ${cart.length} items in your cart: ${itemsList}. Total: $${total}. Say 'Place Order' to checkout.`;
+        }
+        handledLocally = true;
+    }
+    // Handle "clear cart" locally
+    else if (lowerMsg.includes("clear cart") || lowerMsg.includes("empty cart")) {
+        setCart([]);
+        reply = "I've emptied your cart.";
+        handledLocally = true;
+    }
+
+    // 2. Try Backend AI (Only if not handled locally)
+    if (!handledLocally) {
+        const backendResponse = await apiService.sendChat(message, userId);
+        
+        if (backendResponse && backendResponse.text) {
+            // Success from backend
+            reply = backendResponse.text;
+            
+            // Handle specific actions from backend if structured
+            if (backendResponse.type === 'cart-update' || lowerMsg.includes('add to cart')) {
+                 const product = products.find(p => lowerMsg.includes(p.title.toLowerCase()) || lowerMsg.includes(p.category.toLowerCase().split("'")[0]));
+                 if(product) {
+                     setCart(prev => [...prev, product]);
+                 }
+            }
+        } else {
+            // Fallback to Local Logic (if backend is offline)
+            setIsBackendOffline(true);
+            await new Promise(r => setTimeout(r, 600)); // Simulate delay
+
+            // A. Cart Add Logic (Fallback)
+            if (lowerMsg.includes("add to cart") || lowerMsg.includes("buy")) {
+                const product = products.find(p => lowerMsg.includes(p.title.toLowerCase()) || lowerMsg.includes(p.category.toLowerCase().split("'")[0]));
+                if (product) {
+                    setCart(prev => [...prev, product]);
+                    reply = `I've added '${product.title}' to your cart. Total items: ${cart.length + 1}.`;
+                } else {
+                    reply = "I couldn't find that product directly. Try checking our catalog above!";
+                }
+            }
+            // B. Place Order
+            else if (lowerMsg.includes("place order") || lowerMsg.includes("checkout")) {
+                if (cart.length === 0) {
+                    reply = "Your cart is empty. Add some cool gear first!";
+                } else {
+                    const order = processOrder();
+                    if (order) reply = `Order #${order.id} placed successfully! It will arrive by ${order.deliveryDate}.`;
+                    else reply = "Error placing order.";
+                }
+            }
+            // C. Smart Handlers
+            else if (lowerMsg.includes("best selling")) {
+                reply = "Our best-selling item is the 'Urban Explorer Backpack'. Would you like to add it to your cart?";
+            }
+            else if (lowerMsg.includes("contact") || lowerMsg.includes("support")) {
+                reply = `You can reach our human support team at ${settings.supportEmail}.`;
+            }
+            // D. Fallback
+            else {
+                const faqMatch = settings.faqs.find(f => lowerMsg.includes(f.question));
+                reply = faqMatch ? faqMatch.answer : "I'm running in offline mode. I can help you browse products and manage your cart!";
+            }
         }
     }
 
     setChatLog(prev => [...prev, { sender: 'bot', text: reply, timestamp: new Date() }]);
   };
-
-  // Calculate Dashboard Stats (Local fallback if offline)
-  const stats: DashboardStats = isBackendOffline ? {
-    revenue: orders.reduce((sum, order) => sum + (order.total || 0), 0),
-    totalOrders: orders.length,
-    totalUsers: 1,
-    totalChats: chatLog.length,
-    mostViewedProduct: "Urban Explorer Backpack"
-  } : dashboardStats;
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
@@ -569,16 +545,11 @@ const App: React.FC = () => {
                 >
                   Storefront
                 </button>
-                <button 
-                  onClick={() => setView('admin')}
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${view === 'admin' ? 'border-indigo-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}
-                >
-                  Admin Panel
-                </button>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <div className="relative cursor-pointer group" onClick={() => setChatOpen(true)}>
+              {/* UPDATED: Cart Icon now sets View to 'cart' instead of opening Chat */}
+              <div className="relative cursor-pointer group" onClick={() => setView('cart')}>
                 <div className="bg-gray-100 p-2 rounded-full group-hover:bg-indigo-50 transition-colors">
                   <ShoppingCart size={20} className="text-gray-600 group-hover:text-indigo-600" />
                 </div>
@@ -632,57 +603,24 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {view === 'admin' && (
-          <div className="animate-in slide-in-from-bottom-4 duration-500">
-             <div className="mb-8 flex justify-between items-center">
-                <div>
-                   <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-                   <p className="text-gray-500">Welcome back, Admin</p>
-                </div>
-                <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700">
-                   <Settings size={16} /> Settings
-                </button>
-             </div>
-             <Dashboard stats={stats} orders={orders} isOffline={isBackendOffline} />
-             
-             {/* Product Management Section */}
-             <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                   <h3 className="font-bold text-gray-800">Inventory Management</h3>
-                   <button className="text-indigo-600 text-sm font-medium hover:text-indigo-800 flex items-center gap-1">
-                      <Plus size={16} /> Add Product
-                   </button>
-                </div>
-                <table className="w-full text-sm text-left text-gray-500">
-                  <thead className="bg-gray-50 text-xs uppercase text-gray-700">
-                     <tr>
-                        <th className="px-6 py-3">Product</th>
-                        <th className="px-6 py-3">Category</th>
-                        <th className="px-6 py-3">Price</th>
-                        <th className="px-6 py-3">Stock</th>
-                        <th className="px-6 py-3">Action</th>
-                     </tr>
-                  </thead>
-                  <tbody>
-                     {products.map(p => (
-                        <tr key={p.id} className="border-b hover:bg-gray-50">
-                           <td className="px-6 py-4 font-medium text-gray-900">{p.title}</td>
-                           <td className="px-6 py-4">{p.category}</td>
-                           <td className="px-6 py-4">${p.price}</td>
-                           <td className="px-6 py-4">
-                              <span className={`px-2 py-1 rounded-full text-xs ${p.stock < 20 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                 {p.stock}
-                              </span>
-                           </td>
-                           <td className="px-6 py-4">
-                              <button className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
-                           </td>
-                        </tr>
-                     ))}
-                  </tbody>
-                </table>
-             </div>
-          </div>
+        {view === 'cart' && (
+            <CartView 
+                cart={cart} 
+                onRemove={handleRemoveFromCart} 
+                onCheckout={() => {
+                    const order = processOrder();
+                    if(order) {
+                        setView('shop');
+                        setChatOpen(true);
+                        setChatLog(prev => [...prev, {
+                            sender: 'bot',
+                            text: `Order #${order.id} placed successfully! Thank you for your purchase.`,
+                            timestamp: new Date()
+                        }]);
+                    }
+                }}
+                onContinueShopping={() => setView('shop')}
+            />
         )}
       </main>
 
