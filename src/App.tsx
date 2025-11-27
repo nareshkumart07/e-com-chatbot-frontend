@@ -1,17 +1,74 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, MessageSquare, Send, Package, User, BarChart2, Settings, Plus, X, Trash2, Home, Search, Menu, ChevronRight, Zap } from 'lucide-react';
+import { ShoppingCart, MessageSquare, Send, Package, User, BarChart2, Settings, Plus, X, Trash2, Menu, Zap } from 'lucide-react';
 
-// --- MOCK DATA (Mirrors the Node.js Backend) ---
-const FALLBACK_PRODUCTS = [
-  { id: 1, title: "Urban Explorer Backpack", price: 109.95, category: "men's clothing", stock: 50, active: true, description: "Perfect for everyday use.", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=60" },
-  { id: 2, title: "Slim Fit Cotton T-Shirt", price: 22.3, category: "men's clothing", stock: 100, active: true, description: "Light weight & soft fabric.", image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=500&q=60" },
-  { id: 3, title: "Winter Explorer Jacket", price: 55.99, category: "men's clothing", stock: 30, active: true, description: "Great for Winter.", image: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=500&q=60" },
-  { id: 4, title: "Gold Plated Ring", price: 168.00, category: "jewelery", stock: 15, active: true, description: "Satisfaction Guaranteed.", image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=500&q=60" },
-  { id: 5, title: "Smart Wireless Headset", price: 89.99, category: "electronics", stock: 25, active: true, description: "Noise cancelling.", image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=60" },
-  { id: 6, title: "Classic Leather Watch", price: 120.50, category: "accessories", stock: 10, active: true, description: "Timeless elegance.", image: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=500&q=60" }
+// --- TYPES & INTERFACES ---
+
+interface Product {
+  id: number;
+  title: string;
+  price: number;
+  category: string;
+  stock: number;
+  active: boolean;
+  description: string;
+  image: string;
+}
+
+interface UserData {
+  id: string;
+  name: string;
+}
+
+interface Order {
+  id: string;
+  items: Product[];
+  total: number;
+  customer: UserData;
+  status: 'Pending' | 'Confirmed' | 'Shipped' | 'Delivered' | 'Cancelled';
+  date: string;
+  deliveryDate: string;
+}
+
+interface ChatMessage {
+  sender: 'user' | 'bot';
+  text: string;
+  timestamp: Date;
+}
+
+interface Faq {
+  question: string;
+  answer: string;
+}
+
+interface AppSettings {
+  storeName: string;
+  supportEmail: string;
+  botName: string;
+  botActive: boolean;
+  welcomeMessage: string;
+  faqs: Faq[];
+}
+
+interface DashboardStats {
+  revenue: number;
+  totalOrders: number;
+  totalUsers: number;
+  totalChats: number;
+  mostViewedProduct: string;
+}
+
+// --- MOCK DATA ---
+
+const FALLBACK_PRODUCTS: Product[] = [
+  { id: 1, title: "Urban Explorer Backpack 2025", price: 119.95, category: "men's clothing", stock: 50, active: true, description: "Updated 2025 model for everyday use.", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=60" },
+  { id: 2, title: "Slim Fit Cotton T-Shirt", price: 24.50, category: "men's clothing", stock: 100, active: true, description: "Light weight & soft fabric.", image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=500&q=60" },
+  { id: 3, title: "Winter Explorer Jacket '25", price: 69.99, category: "men's clothing", stock: 30, active: true, description: "Great for Winter.", image: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=500&q=60" },
+  { id: 4, title: "Gold Plated Ring", price: 175.00, category: "jewelery", stock: 15, active: true, description: "Satisfaction Guaranteed.", image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=500&q=60" },
+  { id: 5, title: "Smart Wireless Headset Gen 2", price: 99.99, category: "electronics", stock: 25, active: true, description: "Improved noise cancelling.", image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=60" },
+  { id: 6, title: "Classic Leather Watch", price: 125.50, category: "accessories", stock: 10, active: true, description: "Timeless elegance.", image: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=500&q=60" }
 ];
 
-const INITIAL_SETTINGS = {
+const INITIAL_SETTINGS: AppSettings = {
   storeName: "Nexa AI Store",
   supportEmail: "support@nexa.com",
   botName: "NexaBot",
@@ -23,7 +80,7 @@ const INITIAL_SETTINGS = {
   ]
 };
 
-const SUGGESTED_QUESTIONS = [
+const SUGGESTED_QUESTIONS: string[] = [
   "Show my cart",
   "Track my order",
   "Shipping policy",
@@ -35,9 +92,18 @@ const SUGGESTED_QUESTIONS = [
 // --- COMPONENTS ---
 
 // 1. CHATBOT WIDGET
-const ChatWidget = ({ chatLog, onSendMessage, isOpen, setIsOpen, settings, suggestedQuestions }) => {
-  const [input, setInput] = useState("");
-  const messagesEndRef = useRef(null);
+interface ChatWidgetProps {
+  chatLog: ChatMessage[];
+  onSendMessage: (message: string) => void;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
+  settings: AppSettings;
+  suggestedQuestions: string[];
+}
+
+const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen, setIsOpen, settings, suggestedQuestions }) => {
+  const [input, setInput] = useState<string>("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -45,14 +111,14 @@ const ChatWidget = ({ chatLog, onSendMessage, isOpen, setIsOpen, settings, sugge
 
   useEffect(scrollToBottom, [chatLog, isOpen]);
 
-  const handleSend = (e) => {
+  const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
     onSendMessage(input);
     setInput("");
   };
 
-  const handleQuickQuestion = (question) => {
+  const handleQuickQuestion = (question: string) => {
     onSendMessage(question);
   };
 
@@ -139,7 +205,12 @@ const ChatWidget = ({ chatLog, onSendMessage, isOpen, setIsOpen, settings, sugge
           onClick={() => setIsOpen(true)}
           className="group w-full h-full bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-all hover:scale-105 active:scale-95 animate-bounce-subtle"
         >
-          <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></div>
+          {/* Blinking Red Dot Feature */}
+          <span className="absolute -top-2 -right-2 flex h-4 w-4">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
+          </span>
+          
           <MessageSquare size={28} className="group-hover:rotate-12 transition-transform" />
         </button>
       )}
@@ -148,7 +219,12 @@ const ChatWidget = ({ chatLog, onSendMessage, isOpen, setIsOpen, settings, sugge
 };
 
 // 2. PRODUCT CARD
-const ProductCard = ({ product, onAddToCart }) => (
+interface ProductCardProps {
+  product: Product;
+  onAddToCart: (product: Product) => void;
+}
+
+const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => (
   <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-gray-100 overflow-hidden group">
     <div className="relative h-48 overflow-hidden bg-gray-100">
       <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -171,7 +247,12 @@ const ProductCard = ({ product, onAddToCart }) => (
 );
 
 // 3. ADMIN DASHBOARD
-const Dashboard = ({ stats, orders }) => {
+interface DashboardProps {
+  stats: DashboardStats;
+  orders: Order[];
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ stats, orders }) => {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -225,7 +306,7 @@ const Dashboard = ({ stats, orders }) => {
                   </tr>
                 ))}
                 {orders.length === 0 && (
-                  <tr><td colSpan="4" className="text-center py-4">No orders yet</td></tr>
+                  <tr><td colSpan={4} className="text-center py-4">No orders yet</td></tr>
                 )}
               </tbody>
             </table>
@@ -250,31 +331,30 @@ const Dashboard = ({ stats, orders }) => {
 };
 
 // 4. MAIN APP COMPONENT
-const App = () => {
+const App: React.FC = () => {
   // --- STATE ---
-  const [view, setView] = useState('shop'); // shop, admin
-  const [products, setProducts] = useState(FALLBACK_PRODUCTS);
-  const [cart, setCart] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [chatLog, setChatLog] = useState([
+  const [view, setView] = useState<'shop' | 'admin'>('shop');
+  const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+  const [cart, setCart] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [chatLog, setChatLog] = useState<ChatMessage[]>([
     { sender: 'bot', text: INITIAL_SETTINGS.welcomeMessage, timestamp: new Date() }
   ]);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [settings, setSettings] = useState(INITIAL_SETTINGS);
-  const [userId] = useState("user_web_demo");
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState<boolean>(false);
+  const [settings, setSettings] = useState<AppSettings>(INITIAL_SETTINGS);
+  const [userId] = useState<string>("user_web_demo");
+  const [isSidebarOpen, setSidebarOpen] = useState<boolean>(false);
 
-  // --- LOGIC: SIMULATING THE NODE.JS BACKEND LOCALLY ---
+  // --- LOGIC ---
   
-  const handleAddToCart = (product) => {
+  const handleAddToCart = (product: Product) => {
     setCart(prev => [...prev, product]);
-    // Optional: Trigger a notification or toast
   };
 
-  const processOrder = () => {
+  const processOrder = (): Order | null => {
     if (cart.length === 0) return null;
     const total = cart.reduce((acc, i) => acc + i.price, 0);
-    const newOrder = {
+    const newOrder: Order = {
         id: Math.floor(10000 + Math.random() * 90000).toString(),
         items: [...cart],
         total: parseFloat(total.toFixed(2)),
@@ -288,9 +368,9 @@ const App = () => {
     return newOrder;
   };
 
-  const handleChat = async (message) => {
+  const handleChat = async (message: string) => {
     // 1. Add User Message
-    const userMsg = { sender: 'user', text: message, timestamp: new Date() };
+    const userMsg: ChatMessage = { sender: 'user', text: message, timestamp: new Date() };
     setChatLog(prev => [...prev, userMsg]);
 
     // 2. Simulate Backend Logic
@@ -331,7 +411,11 @@ const App = () => {
         reply = "Your cart is empty. Add some cool gear first!";
       } else {
         const order = processOrder();
-        reply = `Order #${order.id} placed successfully! It will arrive by ${order.deliveryDate}.`;
+        if (order) {
+            reply = `Order #${order.id} placed successfully! It will arrive by ${order.deliveryDate}.`;
+        } else {
+            reply = "Something went wrong while placing the order.";
+        }
       }
     }
 
@@ -357,13 +441,10 @@ const App = () => {
 
     // F. Fallback / AI Simulation
     else {
-      // In a real app, this would hit the Gemini API.
-      // Here we use a simple heuristic fallback + the FAQ list
       const faqMatch = settings.faqs.find(f => lowerMsg.includes(f.question));
       if (faqMatch) {
         reply = faqMatch.answer;
       } else {
-        // Generic "AI" responses
         const randomResponses = [
           "I can help you browse products, check your cart, or track an order.",
           "That sounds interesting! Have you seen our new Urban Explorer Backpack?",
@@ -378,7 +459,7 @@ const App = () => {
   };
 
   // Calculate Dashboard Stats
-  const stats = {
+  const stats: DashboardStats = {
     revenue: orders.reduce((sum, order) => sum + (order.total || 0), 0),
     totalOrders: orders.length,
     totalUsers: 1, // Single user demo
@@ -447,7 +528,7 @@ const App = () => {
             {/* Hero Section */}
             <div className="bg-gradient-to-r from-gray-900 to-indigo-900 rounded-3xl p-8 mb-10 text-white shadow-xl relative overflow-hidden">
                <div className="relative z-10 max-w-xl">
-                 <h1 className="text-4xl font-extrabold mb-4 tracking-tight">Summer Collection 2024</h1>
+                 <h1 className="text-4xl font-extrabold mb-4 tracking-tight">Summer Collection 2025</h1>
                  <p className="text-indigo-100 mb-6 text-lg">Discover the latest trends in techwear and accessories. Powered by AI shopping assistance.</p>
                  <button onClick={() => setChatOpen(true)} className="bg-white text-indigo-900 px-6 py-3 rounded-full font-bold shadow-lg hover:bg-indigo-50 transition-colors">
                    Chat with {settings.botName}
