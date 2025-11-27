@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, ArrowLeft, CreditCard, Info } from 'lucide-react';
+import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, ArrowLeft, CreditCard, Info, Sparkles } from 'lucide-react';
 
 // --- CONFIGURATION ---
 // <--- BACKEND INTEGRATION POINT: Set your actual backend URL here
 const DEMO_MODE = false; // Set to true for company presentation (uses mock data instantly)
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+const API_BASE_URL =  import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 // --- TYPES & INTERFACES ---
 
@@ -38,7 +38,7 @@ interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   timestamp: Date;
-  image?: string; // NEW: Added optional image field
+  image?: string;
 }
 
 interface Faq {
@@ -124,6 +124,22 @@ const apiService = {
             console.warn("Backend offline, using local chat logic:", error);
             return null;
         }
+    },
+
+    // 3. New Stylist Feature
+    getStyleAdvice: async (productId: number): Promise<{ text: string } | null> => {
+        if (DEMO_MODE) return { text: "I think this would go perfectly with our Urban Explorer Backpack! (Demo)" };
+        try {
+            const response = await fetch(`${API_BASE_URL}/stylist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId })
+            });
+            if (!response.ok) throw new Error('Stylist failed');
+            return await response.json();
+        } catch (error) {
+            return null;
+        }
     }
 };
 
@@ -159,6 +175,17 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
 
   const handleQuickQuestion = (question: string) => {
     onSendMessage(question);
+  };
+
+  // Helper to parse **bold** text and apply COLOR
+  const parseMessage = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <span key={index} className="font-bold text-indigo-600">{part.slice(2, -2)}</span>;
+        }
+        return part;
+    });
   };
 
   return (
@@ -199,11 +226,11 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
                         ? 'bg-indigo-600 text-white rounded-br-none' 
                         : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'
                     }`}>
-                    {msg.text}
+                        {parseMessage(msg.text)}
                     </div>
                 </div>
                 
-                {/* NEW: Image Rendering Logic */}
+                {/* Image Rendering Logic */}
                 {msg.image && (
                     <div className={`mt-2 max-w-[80%] rounded-xl overflow-hidden border border-gray-200 shadow-sm ${msg.sender === 'bot' ? 'ml-8' : ''}`}>
                         <img 
@@ -275,26 +302,39 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
 interface ProductCardProps {
   product: Product;
   onAddToCart: (product: Product) => void;
+  onStyleMatch: (product: Product) => void;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => (
-  <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-gray-100 overflow-hidden group">
+const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, onStyleMatch }) => (
+  <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-gray-100 overflow-hidden group flex flex-col">
     <div className="relative h-48 overflow-hidden bg-gray-100">
       <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
       <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-bold text-gray-700">
         ${product.price}
       </div>
     </div>
-    <div className="p-4">
+    <div className="p-4 flex-1 flex flex-col">
       <div className="text-xs text-indigo-500 font-semibold uppercase tracking-wider mb-1">{product.category}</div>
       <h3 className="font-bold text-gray-800 mb-2 truncate">{product.title}</h3>
-      <p className="text-gray-500 text-xs mb-4 line-clamp-2">{product.description}</p>
-      <button 
-        onClick={() => onAddToCart(product)}
-        className="w-full bg-gray-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-      >
-        <ShoppingCart size={14} /> Add to Cart
-      </button>
+      <p className="text-gray-500 text-xs mb-4 line-clamp-2 flex-1">{product.description}</p>
+      
+      <div className="flex gap-2">
+          <button 
+            onClick={() => onAddToCart(product)}
+            className="flex-1 bg-gray-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+          >
+            <ShoppingCart size={14} /> Add
+          </button>
+          
+          {/* NEW: Style Match Button */}
+          <button 
+            onClick={() => onStyleMatch(product)}
+            className="px-3 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors flex items-center justify-center"
+            title="Get Outfit Suggestions"
+          >
+            <Sparkles size={16} />
+          </button>
+      </div>
     </div>
   </div>
 );
@@ -449,6 +489,36 @@ const App: React.FC = () => {
   
   const handleClearCart = () => {
       setCart([]);
+  };
+
+  const handleStyleMatch = async (product: Product) => {
+      // 1. Open Chat
+      setChatOpen(true);
+      
+      // 2. Add user "trigger" message
+      setChatLog(prev => [...prev, {
+          sender: 'user',
+          text: `Suggest an outfit with **${product.title}**`,
+          timestamp: new Date()
+      }]);
+
+      // 3. Call Stylist API
+      const advice = await apiService.getStyleAdvice(product.id);
+      
+      // 4. Add bot response
+      if (advice && advice.text) {
+          setChatLog(prev => [...prev, {
+              sender: 'bot',
+              text: advice.text,
+              timestamp: new Date()
+          }]);
+      } else {
+          setChatLog(prev => [...prev, {
+              sender: 'bot',
+              text: "I'm having trouble connecting to the styling server right now.",
+              timestamp: new Date()
+          }]);
+      }
   };
 
   const processOrder = (): Order | null => {
@@ -667,7 +737,7 @@ const App: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                       {products.map(product => (
-                        <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
+                        <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} onStyleMatch={handleStyleMatch} />
                       ))}
                     </div>
                   </div>
