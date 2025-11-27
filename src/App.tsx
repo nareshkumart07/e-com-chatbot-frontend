@@ -4,7 +4,8 @@ import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, Arrow
 // --- CONFIGURATION ---
 // <--- BACKEND INTEGRATION POINT: Set your actual backend URL here
 const DEMO_MODE = false; // Set to true for company presentation (uses mock data instantly)
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+const API_BASE_URL =  import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+
 
 // --- TYPES & INTERFACES ---
 
@@ -38,6 +39,7 @@ interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   timestamp: Date;
+  image?: string; // NEW: Added optional image field
 }
 
 interface Faq {
@@ -186,19 +188,32 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-4">
             {chatLog.map((msg, idx) => (
-              <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {msg.sender === 'bot' && (
-                  <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center mr-2 flex-shrink-0 mt-1">
-                     <Zap size={12} className="text-indigo-600" />
-                  </div>
-                )}
-                <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm leading-relaxed ${
-                  msg.sender === 'user' 
-                    ? 'bg-indigo-600 text-white rounded-br-none' 
-                    : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'
-                }`}>
-                  {msg.text}
+              <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                    {msg.sender === 'bot' && (
+                    <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center mr-2 flex-shrink-0 mt-1">
+                        <Zap size={12} className="text-indigo-600" />
+                    </div>
+                    )}
+                    <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm leading-relaxed ${
+                    msg.sender === 'user' 
+                        ? 'bg-indigo-600 text-white rounded-br-none' 
+                        : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'
+                    }`}>
+                    {msg.text}
+                    </div>
                 </div>
+                
+                {/* NEW: Image Rendering Logic */}
+                {msg.image && (
+                    <div className={`mt-2 max-w-[80%] rounded-xl overflow-hidden border border-gray-200 shadow-sm ${msg.sender === 'bot' ? 'ml-8' : ''}`}>
+                        <img 
+                            src={msg.image} 
+                            alt="Requested Product" 
+                            className="w-full h-40 object-cover hover:scale-105 transition-transform duration-500" 
+                        />
+                    </div>
+                )}
               </div>
             ))}
             <div ref={messagesEndRef} />
@@ -512,6 +527,12 @@ const App: React.FC = () => {
         if (backendResponse && backendResponse.text) {
             // Success from backend
             reply = backendResponse.text;
+            let image = null;
+
+            // NEW: Handle Backend Image Response
+            if (backendResponse.type === 'image' && backendResponse.data?.image) {
+                image = backendResponse.data.image;
+            }
             
             // Handle specific actions from backend if structured
             if (backendResponse.type === 'cart-update' || lowerMsg.includes('add to cart')) {
@@ -520,6 +541,16 @@ const App: React.FC = () => {
                      setCart(prev => [...prev, product]);
                  }
             }
+
+            // Push bot message with optional image
+            setChatLog(prev => [...prev, { 
+                sender: 'bot', 
+                text: reply, 
+                timestamp: new Date(),
+                image: image || undefined
+            }]);
+            return; // Exit early since we handled the message push here
+
         } else {
             // Fallback to Local Logic (if backend is offline)
             setIsBackendOffline(true);
