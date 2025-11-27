@@ -3,7 +3,7 @@ import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, Arrow
 
 // --- CONFIGURATION ---
 // <--- BACKEND INTEGRATION POINT: Set your actual backend URL here
-const API_BASE_URL =  import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 // --- TYPES & INTERFACES ---
 
@@ -284,18 +284,26 @@ interface CartViewProps {
     onRemove: (index: number) => void;
     onCheckout: () => void;
     onContinueShopping: () => void;
+    onClear: () => void;
 }
 
-const CartView: React.FC<CartViewProps> = ({ cart, onRemove, onCheckout, onContinueShopping }) => {
+const CartView: React.FC<CartViewProps> = ({ cart, onRemove, onCheckout, onContinueShopping, onClear }) => {
     const total = cart.reduce((acc, item) => acc + item.price, 0);
 
     return (
         <div className="animate-in fade-in duration-300">
-            <div className="mb-6 flex items-center gap-4">
-                 <button onClick={onContinueShopping} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <ArrowLeft size={20} className="text-gray-600"/>
-                 </button>
-                 <h1 className="text-3xl font-bold text-gray-900">Your Shopping Cart</h1>
+            <div className="mb-6 flex items-center justify-between">
+                 <div className="flex items-center gap-4">
+                     <button onClick={onContinueShopping} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                        <ArrowLeft size={20} className="text-gray-600"/>
+                     </button>
+                     <h1 className="text-3xl font-bold text-gray-900">Your Shopping Cart</h1>
+                 </div>
+                 {cart.length > 0 && (
+                     <button onClick={onClear} className="text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border border-transparent hover:border-red-100">
+                        <Trash2 size={16} /> Clear Cart
+                     </button>
+                 )}
             </div>
 
             {cart.length === 0 ? (
@@ -417,6 +425,10 @@ const App: React.FC = () => {
   const handleRemoveFromCart = (indexToRemove: number) => {
     setCart(prev => prev.filter((_, index) => index !== indexToRemove));
   };
+  
+  const handleClearCart = () => {
+      setCart([]);
+  };
 
   const processOrder = (): Order | null => {
     if (cart.length === 0) return null;
@@ -449,7 +461,8 @@ const App: React.FC = () => {
     // --- PRIORITIZE LOCAL CART INTENT ---
     
     // 1. Clear Cart (Highest Priority Local Action)
-    if (lowerMsg.includes("clear cart") || lowerMsg.includes("empty cart")) {
+    // FIX: Updated logic to correctly catch "Clear my cart" by looking for "clear" AND "cart"
+    if ((lowerMsg.includes("clear") || lowerMsg.includes("empty")) && lowerMsg.includes("cart")) {
         setCart([]);
         reply = "I've emptied your cart.";
         handledLocally = true;
@@ -631,6 +644,7 @@ const App: React.FC = () => {
                     }
                 }}
                 onContinueShopping={() => setView('shop')}
+                onClear={handleClearCart}
             />
         )}
       </main>
