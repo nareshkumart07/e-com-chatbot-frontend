@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, ArrowLeft, CreditCard, Info, Sparkles, User, Phone } from 'lucide-react';
+import { ShoppingCart, MessageSquare, Send, Package, X, Zap, ArrowLeft, Sparkles, User, Phone } from 'lucide-react';
 
 // --- CONFIGURATION ---
-const DEMO_MODE = false; 
 // FIX: Removed import.meta to prevent compilation errors in es2015 environments
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
@@ -209,7 +208,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
             {userReg.isRegistered && (
                 <>
                     {chatLog.map((msg, idx) => (
-                    <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} mb-2`}>
                         <div className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
                             {msg.sender === 'bot' && (
                             <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center mr-2 flex-shrink-0 mt-1">
@@ -224,8 +223,14 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
                                 {parseMessage(msg.text)}
                             </div>
                         </div>
+                        
+                        {/* FEATURE: Timestamp */}
+                        <div className={`text-[10px] text-gray-400 mt-1 ${msg.sender === 'user' ? 'mr-1' : 'ml-9'}`}>
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+
                         {msg.image && (
-                            <div className={`mt-2 max-w-[85%] rounded-xl overflow-hidden border-2 border-indigo-50 shadow-sm ${msg.sender === 'bot' ? 'ml-8' : ''}`}>
+                            <div className={`mt-1 max-w-[85%] rounded-xl overflow-hidden border-2 border-indigo-50 shadow-sm ${msg.sender === 'bot' ? 'ml-8' : ''}`}>
                                 <img src={msg.image} alt="Product" className="w-full h-32 object-cover" />
                             </div>
                         )}
