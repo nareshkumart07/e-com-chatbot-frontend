@@ -263,6 +263,10 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
                      <Send size={16} />
                    </button>
                  </form>
+                 {/* Footer Branding */}
+                 <div className="text-center mt-2">
+                    <p className="text-[10px] text-gray-400 font-medium">Powered by Nexa AI Solution</p>
+                 </div>
             </div>
           )}
         </div>
@@ -345,6 +349,19 @@ const App: React.FC = () => {
     // Optimistic UI Update
     setChatLog(prev => [...prev, { sender: 'user', text: msg, timestamp: new Date() }]);
     
+    // FEATURE: Support Agent Handoff Logic
+    // Intercept "support" or "connect" messages before sending to backend
+    if (msg.toLowerCase().includes("support") || msg.toLowerCase().includes("connect")) {
+         setTimeout(() => {
+             setChatLog(prev => [...prev, { 
+                 sender: 'bot', 
+                 text: "Chat transferring to support agent...", 
+                 timestamp: new Date() 
+             }]);
+         }, 800);
+         return; // Stop processing, do not send to AI
+    }
+
     // Call Backend
     const response = await apiService.sendChat(msg, { id: userReg.phone, name: userReg.name, phone: userReg.phone });
     
