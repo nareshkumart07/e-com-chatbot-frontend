@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, MessageSquare, Send, Package, X, Zap, ArrowLeft, Sparkles, User, Phone } from 'lucide-react';
 
 // --- CONFIGURATION ---
-// FIX: Removed import.meta to prevent compilation errors in es2015 environments
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 // --- TYPES ---
@@ -14,7 +13,7 @@ interface Product {
   active: boolean;
   description: string;
   image: string;
-  discount?: number; // Added discount field
+  discount?: number; 
 }
 
 interface ChatMessage {
@@ -130,12 +129,18 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
   };
 
   const parseMessage = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, index) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-            return <span key={index} className="font-bold text-indigo-700">{part.slice(2, -2)}</span>;
-        }
-        return part;
+    // New Line Parsing for cleaner lists
+    const lines = text.split('\n');
+    
+    return lines.map((line, lineIdx) => {
+        const parts = line.split(/(\*\*.*?\*\*)/g);
+        const parsedLine = parts.map((part, index) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <span key={index} className="font-bold text-indigo-700">{part.slice(2, -2)}</span>;
+            }
+            return part;
+        });
+        return <div key={lineIdx} className={lineIdx > 0 ? "mt-1" : ""}>{parsedLine}</div>;
     });
   };
 
@@ -350,7 +355,6 @@ const App: React.FC = () => {
     setChatLog(prev => [...prev, { sender: 'user', text: msg, timestamp: new Date() }]);
     
     // FEATURE: Support Agent Handoff Logic
-    // Intercept "support" or "connect" messages before sending to backend
     if (msg.toLowerCase().includes("support") || msg.toLowerCase().includes("connect")) {
          setTimeout(() => {
              setChatLog(prev => [...prev, { 
@@ -359,7 +363,7 @@ const App: React.FC = () => {
                  timestamp: new Date() 
              }]);
          }, 800);
-         return; // Stop processing, do not send to AI
+         return; 
     }
 
     // Call Backend
