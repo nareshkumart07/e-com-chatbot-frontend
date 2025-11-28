@@ -128,7 +128,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [tempName, setTempName] = useState("");
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [internalChatLog, setInternalChatLog] = useState<ChatMessage[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
