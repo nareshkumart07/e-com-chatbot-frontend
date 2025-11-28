@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, ArrowLeft, CreditCard, Info, Sparkles, Camera, Image as ImageIcon } from 'lucide-react';
+import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, ArrowLeft, CreditCard, Info, Sparkles, Camera, User, Phone } from 'lucide-react';
 
 // --- CONFIGURATION ---
 const DEMO_MODE = false;
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 // --- TYPES & INTERFACES ---
-// ... (Product, UserData, Order interfaces remain same) ...
+
 interface Product {
   id: number;
   title: string;
@@ -18,16 +18,28 @@ interface Product {
   image: string;
 }
 
-interface UserData { id: string; name: string; }
-interface Order { id: string; items: Product[]; total: number; customer: UserData; status: string; date: string; deliveryDate: string; }
+interface UserProfile {
+  name: string;
+  mobile: string;
+}
+
+interface Order {
+  id: string;
+  items: Product[];
+  total: number;
+  customer: { name: string; id: string };
+  status: string;
+  date: string;
+  deliveryDate: string;
+}
 
 interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   timestamp: Date;
-  image?: string; // For single image response
-  images?: string[]; // For gallery response
-  userImage?: string; // NEW: For user uploaded images
+  image?: string; 
+  images?: string[]; 
+  userImage?: string; 
 }
 
 interface Faq { question: string; answer: string; }
@@ -64,8 +76,7 @@ const apiService = {
             return await response.json();
         } catch (error) { return null; }
     },
-    // Updated to accept image
-    sendChat: async (message: string, userId: string, image?: string): Promise<any> => {
+    sendChat: async (message: string, userProfile: UserProfile, image?: string): Promise<any> => {
         if (DEMO_MODE) return null; 
         try {
             const response = await fetch(`${API_BASE_URL}/chat`, {
@@ -73,8 +84,8 @@ const apiService = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     message, 
-                    image, // Sending base64 image
-                    context: { user: { id: userId, name: 'Web User' } } 
+                    image, 
+                    context: { user: { id: userProfile.mobile, name: userProfile.name, phone: userProfile.mobile } } 
                 })
             });
             if (!response.ok) throw new Error('Chat failed');
@@ -95,6 +106,88 @@ const apiService = {
     }
 };
 
+// --- COMPONENT: REGISTRATION MODAL ---
+interface RegistrationProps {
+    onRegister: (profile: UserProfile) => void;
+}
+
+const UserRegistration: React.FC<RegistrationProps> = ({ onRegister }) => {
+    const [name, setName] = useState("");
+    const [mobile, setMobile] = useState("");
+    const [error, setError] = useState("");
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!name.trim()) {
+            setError("Please enter your name");
+            return;
+        }
+        if (!/^\d{10}$/.test(mobile)) {
+            setError("Please enter a valid 10-digit mobile number");
+            return;
+        }
+        onRegister({ name, mobile });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600"></div>
+                <div className="text-center mb-8">
+                    <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600">
+                        <Zap size={32} />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900">Welcome to Nexa AI</h2>
+                    <p className="text-gray-500 mt-2">Please create your profile to continue shopping</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                <User size={18} />
+                            </div>
+                            <input 
+                                type="text" 
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                                placeholder="Enter your name"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                <Phone size={18} />
+                            </div>
+                            <input 
+                                type="tel" 
+                                value={mobile}
+                                onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                                placeholder="10-digit number"
+                            />
+                        </div>
+                    </div>
+
+                    {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
+                    <button 
+                        type="submit" 
+                        className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transform hover:scale-[1.02] transition-all shadow-lg mt-2"
+                    >
+                        Start Shopping
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 // --- CHAT WIDGET ---
 interface ChatWidgetProps {
   chatLog: ChatMessage[];
@@ -104,9 +197,10 @@ interface ChatWidgetProps {
   settings: AppSettings;
   suggestedQuestions: string[];
   isOffline: boolean;
+  userProfile: UserProfile | null;
 }
 
-const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen, setIsOpen, settings, suggestedQuestions, isOffline }) => {
+const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen, setIsOpen, settings, suggestedQuestions, isOffline, userProfile }) => {
   const [input, setInput] = useState<string>("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -157,7 +251,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
               <div>
                 <h3 className="font-bold text-base leading-tight">{settings.botName}</h3>
                 <span className="text-[10px] text-indigo-200 uppercase tracking-wider font-semibold">
-                    {isOffline ? 'Demo Mode' : 'AI Assistant'}
+                    {userProfile ? 'Online' : 'Welcome'}
                 </span>
               </div>
             </div>
@@ -170,14 +264,12 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
                 <div className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
                     {msg.sender === 'bot' && <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center mr-2 flex-shrink-0 mt-1"><Zap size={12} className="text-indigo-600" /></div>}
                     <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm leading-relaxed ${msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'}`}>
-                        {/* Show User Uploaded Image inside bubble */}
                         {msg.userImage && (
                             <img src={msg.userImage} alt="Upload" className="w-full h-32 object-cover rounded-lg mb-2 border border-white/20" />
                         )}
                         {parseMessage(msg.text)}
                     </div>
                 </div>
-                {/* Bot Gallery Response */}
                 {msg.images && msg.images.length > 0 && (
                     <div className={`mt-2 max-w-[85%] grid grid-cols-2 gap-2 ${msg.sender === 'bot' ? 'ml-8' : ''}`}>
                         {msg.images.map((imgUrl, imgIdx) => (
@@ -193,7 +285,6 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
           </div>
 
           <div className="bg-white border-t border-gray-100 relative">
-             {/* Image Preview Overlay */}
              {selectedImage && (
                  <div className="absolute bottom-full left-0 w-full p-2 bg-gray-100 border-t border-gray-200 flex items-center justify-between">
                      <div className="flex items-center gap-2">
@@ -211,22 +302,8 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
              </div>
 
              <form onSubmit={handleSend} className="p-3 flex gap-2 items-center">
-               {/* Hidden File Input */}
-               <input 
-                   type="file" 
-                   ref={fileInputRef} 
-                   onChange={handleImageSelect} 
-                   accept="image/*" 
-                   className="hidden" 
-               />
-               <button 
-                   type="button" 
-                   onClick={() => fileInputRef.current?.click()} 
-                   className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded-full transition-colors"
-                   title="Upload Image"
-               >
-                   <Camera size={20} />
-               </button>
+               <input type="file" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" className="hidden" />
+               <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded-full transition-colors" title="Upload Image"><Camera size={20} /></button>
 
                <input
                  type="text"
@@ -235,9 +312,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
                  placeholder={selectedImage ? "Ask about this image..." : "Type your message..."}
                  className="flex-1 bg-gray-100 border-none rounded-full px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all placeholder-gray-400"
                />
-               <button type="submit" className="w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors shadow-sm transform active:scale-95">
-                 <Send size={18} />
-               </button>
+               <button type="submit" className="w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors shadow-sm transform active:scale-95"><Send size={18} /></button>
              </form>
              
              <div className="pb-2 text-center">
@@ -258,8 +333,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({ chatLog, onSendMessage, isOpen,
   );
 };
 
-// ... (ProductCard, CartView, App Logic - kept mostly same but updated handleChat signature) ...
-
+// ... (ProductCard and CartView remain exactly the same as previous logic, just ensuring they are present) ...
 const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, onStyleMatch }) => (
   <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 border border-gray-100 overflow-hidden group flex flex-col">
     <div className="relative h-48 overflow-hidden bg-gray-100">
@@ -331,12 +405,14 @@ const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
   const [cart, setCart] = useState<Product[]>([]);
   const [, setOrders] = useState<Order[]>([]);
-  const [chatLog, setChatLog] = useState<ChatMessage[]>([{ sender: 'bot', text: INITIAL_SETTINGS.welcomeMessage, timestamp: new Date() }]);
+  const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
   const [chatOpen, setChatOpen] = useState<boolean>(false);
   const [settings] = useState<AppSettings>(INITIAL_SETTINGS);
-  const [userId] = useState<string>("user_web_demo");
   const [isSidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [isBackendOffline, setIsBackendOffline] = useState<boolean>(false);
+  
+  // NEW: User Profile State
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     const initData = async () => {
@@ -347,9 +423,20 @@ const App: React.FC = () => {
     initData();
   }, []);
 
+  const handleRegister = (profile: UserProfile) => {
+      setUserProfile(profile);
+      // Initialize chat with greeting AFTER registration
+      setChatLog([{ 
+          sender: 'bot', 
+          text: `Hello ${profile.name}! I'm NexaBot. How can I help you today?`, 
+          timestamp: new Date() 
+      }]);
+  };
+
   const handleAddToCart = (product: Product) => { setCart(prev => [...prev, product]); };
   const handleRemoveFromCart = (indexToRemove: number) => { setCart(prev => prev.filter((_, index) => index !== indexToRemove)); };
   const handleClearCart = () => { setCart([]); };
+  
   const handleStyleMatch = async (product: Product) => {
       setChatOpen(true);
       setChatLog(prev => [...prev, { sender: 'user', text: `Suggest an outfit with **${product.title}**`, timestamp: new Date() }]);
@@ -358,13 +445,13 @@ const App: React.FC = () => {
   };
 
   const processOrder = (): Order | null => {
-    if (cart.length === 0) return null;
+    if (cart.length === 0 || !userProfile) return null;
     const total = cart.reduce((acc, i) => acc + i.price, 0);
     const newOrder: Order = {
         id: Math.floor(10000 + Math.random() * 90000).toString(),
         items: [...cart],
         total: parseFloat(total.toFixed(2)),
-        customer: { id: userId, name: "Web User" },
+        customer: { id: userProfile.mobile, name: userProfile.name },
         status: 'Pending',
         date: new Date().toLocaleDateString(),
         deliveryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toDateString()
@@ -375,6 +462,8 @@ const App: React.FC = () => {
   };
 
   const handleChat = async (message: string, image?: string) => {
+    if (!userProfile) return;
+
     setChatLog(prev => [...prev, { sender: 'user', text: message, timestamp: new Date(), userImage: image }]);
     
     let reply = "";
@@ -402,7 +491,8 @@ const App: React.FC = () => {
     }
 
     if (!handledLocally) {
-        const backendResponse = await apiService.sendChat(message, userId, image);
+        // Pass userProfile to backend
+        const backendResponse = await apiService.sendChat(message, userProfile, image);
         if (backendResponse && backendResponse.text) {
             reply = backendResponse.text;
             let images: string[] = [];
@@ -432,6 +522,10 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
+      
+      {/* Registration Modal Overlay */}
+      {!userProfile && <UserRegistration onRegister={handleRegister} />}
+
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
@@ -451,8 +545,12 @@ const App: React.FC = () => {
                 {cart.length > 0 && <span className="absolute top-0 right-0 block h-4 w-4 rounded-full ring-2 ring-white bg-red-500 text-center text-[10px] font-bold text-white leading-tight">{cart.length}</span>}
               </div>
               <div className="bg-indigo-50 p-1 pr-3 rounded-full flex items-center gap-2 border border-indigo-100">
-                <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">JS</div>
-                <span className="text-sm font-medium text-indigo-900 hidden sm:block">Jane Smith</span>
+                <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
+                    {userProfile ? userProfile.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <span className="text-sm font-medium text-indigo-900 hidden sm:block">
+                    {userProfile ? userProfile.name : 'Guest'}
+                </span>
               </div>
             </div>
           </div>
@@ -481,7 +579,7 @@ const App: React.FC = () => {
         {view === 'cart' && <CartView cart={cart} onRemove={handleRemoveFromCart} onCheckout={() => { const order = processOrder(); if(order) { setView('shop'); setChatOpen(true); setChatLog(prev => [...prev, { sender: 'bot', text: `Order **#${order.id}** placed!`, timestamp: new Date() }]); } }} onContinueShopping={() => setView('shop')} onClear={handleClearCart} />}
       </main>
 
-      <ChatWidget chatLog={chatLog} onSendMessage={handleChat} isOpen={chatOpen} setIsOpen={setChatOpen} settings={settings} suggestedQuestions={SUGGESTED_QUESTIONS} isOffline={isBackendOffline} />
+      <ChatWidget chatLog={chatLog} onSendMessage={handleChat} isOpen={chatOpen} setIsOpen={setChatOpen} settings={settings} suggestedQuestions={SUGGESTED_QUESTIONS} isOffline={isBackendOffline} userProfile={userProfile} />
     </div>
   );
 };
