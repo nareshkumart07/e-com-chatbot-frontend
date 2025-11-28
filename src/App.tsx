@@ -108,7 +108,6 @@ interface ChatWidgetProps {
   onRegister: (name: string, mobile: string) => void;
   currentLanguage: string;
   onLanguageChange: (lang: string) => void;
-  isTyping: boolean;
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -122,7 +121,7 @@ const SUGGESTED_QUESTIONS = [
 
 const ChatWidget: React.FC<ChatWidgetProps> = ({ 
   chatLog, onSendMessage, isOpen, setIsOpen, isOffline, 
-  userReg, onRegister, currentLanguage, onLanguageChange, isTyping 
+  userReg, onRegister, currentLanguage, onLanguageChange 
 }) => {
   const [input, setInput] = useState("");
   const [regStep, setRegStep] = useState<'name' | 'mobile' | 'done'>('name');
@@ -450,12 +449,8 @@ const App: React.FC = () => {
   const handleChat = async (message: string) => {
     const userMsg: ChatMessage = { sender: 'user', text: message, timestamp: new Date() };
     setChatLog(prev => [...prev, userMsg]);
-    
-    setIsTyping(true);
 
     const backendResponse = await apiService.sendChat(message, userReg.mobile, userReg.name, currentLanguage);
-    
-    setIsTyping(false);
     
     if (backendResponse && backendResponse.text) {
       const botMsg: ChatMessage = {
@@ -570,7 +565,6 @@ const App: React.FC = () => {
         onRegister={handleRegister}
         currentLanguage={currentLanguage}
         onLanguageChange={setCurrentLanguage}
-        isTyping={isTyping}
       />
     </div>
   );
