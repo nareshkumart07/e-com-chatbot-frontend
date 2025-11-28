@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Zap, ArrowLeft, Info, Globe } from 'lucide-react';
 
 const DEMO_MODE = false;
-const API_BASE_URL =  import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 interface Product {
   id: number;
@@ -110,6 +110,15 @@ interface ChatWidgetProps {
   onLanguageChange: (lang: string) => void;
 }
 
+const SUGGESTED_QUESTIONS = [
+  "What's your return policy?",
+  "Shipping time?",
+  "Track my order",
+  "Show me discounts",
+  "Search products",
+  "Best sellers"
+];
+
 const ChatWidget: React.FC<ChatWidgetProps> = ({ 
   chatLog, onSendMessage, isOpen, setIsOpen, isOffline, 
   userReg, onRegister, currentLanguage, onLanguageChange 
@@ -118,33 +127,87 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
   const [regStep, setRegStep] = useState<'name' | 'mobile' | 'done'>('name');
   const [tempName, setTempName] = useState("");
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [internalChatLog, setInternalChatLog] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatLog, isOpen]);
+  }, [internalChatLog, isOpen]);
+
+  // Initialize with welcome message for registration
+  useEffect(() => {
+    if (isOpen && !userReg.registered && internalChatLog.length === 0) {
+      setInternalChatLog([{
+        sender: 'bot',
+        text: "👋 Welcome to Nexa AI Store! To get started, please tell me your name.",
+        timestamp: new Date()
+      }]);
+    }
+  }, [isOpen, userReg.registered]);
+
+  // Sync with parent chatLog when registered
+  useEffect(() => {
+    if (userReg.registered) {
+      setInternalChatLog(chatLog);
+    }
+  }, [chatLog, userReg.registered]);
 
   const handleSend = () => {
     if (!input.trim()) return;
 
     if (!userReg.registered) {
       if (regStep === 'name') {
+        // User entered name
+        setInternalChatLog(prev => [...prev, {
+          sender: 'user',
+          text: input,
+          timestamp: new Date()
+        }]);
+        
         setTempName(input);
+        
+        // Bot asks for mobile
+        setTimeout(() => {
+          setInternalChatLog(prev => [...prev, {
+            sender: 'bot',
+            text: `Nice to meet you, **${input}**! 😊 Now, please enter your 10-digit mobile number.`,
+            timestamp: new Date()
+          }]);
+        }, 500);
+        
         setRegStep('mobile');
         setInput("");
+        
       } else if (regStep === 'mobile') {
+        // User entered mobile
         const mobileRegex = /^\d{10}$/;
         if (mobileRegex.test(input.trim())) {
-          onRegister(tempName, input.trim());
-          setRegStep('done');
+          setInternalChatLog(prev => [...prev, {
+            sender: 'user',
+            text: input,
+            timestamp: new Date()
+          }]);
+          
+          // Complete registration
+          setTimeout(() => {
+            onRegister(tempName, input.trim());
+            setRegStep('done');
+          }, 300);
+          
           setInput("");
         } else {
-          alert("Please enter a valid 10-digit mobile number");
+          alert("⚠️ Please enter a valid 10-digit mobile number (e.g., 9876543210)");
         }
       }
     } else {
       onSendMessage(input);
       setInput("");
+    }
+  };
+
+  const handleQuickQuestion = (question: string) => {
+    if (userReg.registered) {
+      onSendMessage(question);
     }
   };
 
@@ -221,7 +284,7 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-4">
-            {chatLog.map((msg, idx) => (
+            {internalChatLog.map((msg, idx) => (
               <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                 <div className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
                   {msg.sender === 'bot' && (
@@ -285,8 +348,26 @@ const ChatWidget: React.FC<ChatWidgetProps> = ({
               <Send size={18} />
             </button>
           </div>
+
+          {/* Quick Questions - Only show when registered */}
+          {userReg.registered && (
+            <div className="px-3 pb-2 bg-white border-t border-gray-100">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
+                {SUGGESTED_QUESTIONS.map((q, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleQuickQuestion(q)}
+                    className="px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-600 text-xs font-medium rounded-full hover:bg-indigo-100 whitespace-nowrap flex-shrink-0"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="pb-2 text-center">
-            <p className="text-[10px] text-gray-400">Powered by <span className="text-indigo-500">Nexa AI</span></p>
+            <p className="text-[10px] text-gray-400">Powered by <span className="text-indigo-500">Nexa AI Solution</span></p>
           </div>
         </div>
       ) : (
@@ -355,11 +436,13 @@ const App: React.FC = () => {
 
   const handleRegister = (name: string, mobile: string) => {
     setUserReg({ name, mobile, registered: true });
-    setChatLog(prev => [
-      ...prev,
-      { sender: 'user', text: `${name} | ${mobile}`, timestamp: new Date() },
-      { sender: 'bot', text: `Welcome **${name}**! 🎉 How can I help you today? You can ask about products, track orders, or get recommendations!`, timestamp: new Date() }
-    ]);
+    
+    // Add welcome message after registration
+    setTimeout(() => {
+      setChatLog([
+        { sender: 'bot', text: `Welcome **${name}**! 🎉 I'm your AI shopping assistant. How can I help you today?`, timestamp: new Date() }
+      ]);
+    }, 500);
   };
 
   const handleChat = async (message: string) => {
