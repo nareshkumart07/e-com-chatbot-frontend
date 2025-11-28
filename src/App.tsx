@@ -1,571 +1,324 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Zap, ArrowLeft, Info, Globe } from 'lucide-react';
+import { ShoppingCart, MessageSquare, Send, Package, X, Trash2, Menu, Zap, ArrowLeft, CreditCard, User, Phone, Search, Sparkles, Loader } from 'lucide-react';
 
-const DEMO_MODE = false;
+// --- CONFIGURATION ---
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+
+// --- TYPES ---
 interface Product {
   id: number;
   title: string;
   price: number;
+  discountedPrice: number; // Feature 4
+  discountPercentage: number; // Feature 4
   category: string;
-  stock: number;
-  active: boolean;
   description: string;
   image: string;
+}
+
+interface UserAuth {
+    name: string;
+    mobile: string;
 }
 
 interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
   timestamp: Date;
-  image?: string;
-  images?: string[];
-  products?: Product[];
+  product?: Product; // Feature 6: Product Cards in Chat
 }
 
-interface UserRegistration {
-  name: string;
-  mobile: string;
-  registered: boolean;
-}
+// --- COMPONENTS ---
 
-const FALLBACK_PRODUCTS: Product[] = [
-  { id: 1, title: "Urban Explorer Backpack 2025", price: 119.95, category: "men's clothing", stock: 50, active: true, description: "Updated 2025 model", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=60" },
-  { id: 2, title: "Slim Fit Cotton T-Shirt", price: 24.50, category: "men's clothing", stock: 100, active: true, description: "Lightweight fabric", image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=500&q=60" },
-  { id: 3, title: "Winter Explorer Jacket", price: 69.99, category: "men's clothing", stock: 30, active: true, description: "Perfect for winter", image: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=500&q=60" },
-  { id: 4, title: "Gold Plated Ring", price: 175.00, category: "jewelery", stock: 15, active: true, description: "Premium quality", image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=500&q=60" },
-  { id: 5, title: "Smart Wireless Headset", price: 99.99, category: "electronics", stock: 25, active: true, description: "Noise cancelling", image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=60" },
-  { id: 6, title: "Classic Leather Watch", price: 125.50, category: "accessories", stock: 10, active: true, description: "Timeless elegance", image: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=500&q=60" }
-];
+// 1. LOGIN FORM (Feature 1: Name & 10-digit Mobile)
+const ChatAuthForm: React.FC<{ onLogin: (u: UserAuth) => void }> = ({ onLogin }) => {
+    const [name, setName] = useState("");
+    const [mobile, setMobile] = useState("");
+    const [error, setError] = useState("");
 
-const LANGUAGES = [
-  { code: 'en', name: 'English', flag: '🇬🇧' },
-  { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
-  { code: 'mr', name: 'Marathi', flag: '🇮🇳' },
-  { code: 'hinglish', name: 'Hinglish', flag: '🇮🇳' },
-  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-  { code: 'fr', name: 'French', flag: '🇫🇷' },
-  { code: 'de', name: 'German', flag: '🇩🇪' },
-  { code: 'it', name: 'Italian', flag: '🇮🇹' },
-  { code: 'pt', name: 'Portuguese', flag: '🇵🇹' },
-  { code: 'ru', name: 'Russian', flag: '🇷🇺' },
-  { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
-  { code: 'ko', name: 'Korean', flag: '🇰🇷' },
-  { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
-  { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
-  { code: 'bn', name: 'Bengali', flag: '🇧🇩' },
-  { code: 'te', name: 'Telugu', flag: '🇮🇳' },
-  { code: 'ta', name: 'Tamil', flag: '🇮🇳' },
-  { code: 'ur', name: 'Urdu', flag: '🇵🇰' },
-  { code: 'gu', name: 'Gujarati', flag: '🇮🇳' },
-  { code: 'kn', name: 'Kannada', flag: '🇮🇳' },
-  { code: 'ml', name: 'Malayalam', flag: '🇮🇳' },
-  { code: 'pa', name: 'Punjabi', flag: '🇮🇳' }
-];
-
-const apiService = {
-  getProducts: async (): Promise<Product[] | null> => {
-    if (DEMO_MODE) return null;
-    try {
-      const response = await fetch(`${API_BASE_URL}/products`);
-      if (!response.ok) throw new Error('Network error');
-      return await response.json();
-    } catch (error) {
-      return null;
-    }
-  },
-
-  sendChat: async (message: string, userId: string, userName: string, language: string): Promise<any> => {
-    if (DEMO_MODE) return null;
-    try {
-      const response = await fetch(`${API_BASE_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message, 
-          context: { 
-            user: { id: userId, name: userName },
-            language: language
-          } 
-        })
-      });
-      if (!response.ok) throw new Error('Chat failed');
-      return await response.json();
-    } catch (error) {
-      return null;
-    }
-  }
-};
-
-interface ChatWidgetProps {
-  chatLog: ChatMessage[];
-  onSendMessage: (message: string) => void;
-  isOpen: boolean;
-  setIsOpen: (isOpen: boolean) => void;
-  isOffline: boolean;
-  userReg: UserRegistration;
-  onRegister: (name: string, mobile: string) => void;
-  currentLanguage: string;
-  onLanguageChange: (lang: string) => void;
-}
-
-const SUGGESTED_QUESTIONS = [
-  "What's your return policy?",
-  "Shipping time?",
-  "Track my order",
-  "Show me discounts",
-  "Search products",
-  "Best sellers"
-];
-
-const ChatWidget: React.FC<ChatWidgetProps> = ({ 
-  chatLog, onSendMessage, isOpen, setIsOpen, isOffline, 
-  userReg, onRegister, currentLanguage, onLanguageChange 
-}) => {
-  const [input, setInput] = useState("");
-  const [regStep, setRegStep] = useState<'name' | 'mobile' | 'done'>('name');
-  const [tempName, setTempName] = useState("");
-  const [showLangMenu, setShowLangMenu] = useState(false);
-  const [internalChatLog, setInternalChatLog] = useState<ChatMessage[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [internalChatLog, isOpen]);
-
-  // Initialize with welcome message for registration
-  useEffect(() => {
-    if (isOpen && !userReg.registered && internalChatLog.length === 0) {
-      setInternalChatLog([{
-        sender: 'bot',
-        text: "👋 Welcome to Nexa AI Store! To get started, please tell me your name.",
-        timestamp: new Date()
-      }]);
-    }
-  }, [isOpen, userReg.registered]);
-
-  // Sync with parent chatLog when registered
-  useEffect(() => {
-    if (userReg.registered) {
-      setInternalChatLog(chatLog);
-    }
-  }, [chatLog, userReg.registered]);
-
-  const handleSend = () => {
-    if (!input.trim()) return;
-
-    if (!userReg.registered) {
-      if (regStep === 'name') {
-        // User entered name
-        setInternalChatLog(prev => [...prev, {
-          sender: 'user',
-          text: input,
-          timestamp: new Date()
-        }]);
-        
-        setTempName(input);
-        
-        // Bot asks for mobile
-        setTimeout(() => {
-          setInternalChatLog(prev => [...prev, {
-            sender: 'bot',
-            text: `Nice to meet you, **${input}**! 😊 Now, please enter your 10-digit mobile number.`,
-            timestamp: new Date()
-          }]);
-        }, 500);
-        
-        setRegStep('mobile');
-        setInput("");
-        
-      } else if (regStep === 'mobile') {
-        // User entered mobile
-        const mobileRegex = /^\d{10}$/;
-        if (mobileRegex.test(input.trim())) {
-          setInternalChatLog(prev => [...prev, {
-            sender: 'user',
-            text: input,
-            timestamp: new Date()
-          }]);
-          
-          // Complete registration
-          setTimeout(() => {
-            onRegister(tempName, input.trim());
-            setRegStep('done');
-          }, 300);
-          
-          setInput("");
-        } else {
-          alert("⚠️ Please enter a valid 10-digit mobile number (e.g., 9876543210)");
-        }
-      }
-    } else {
-      onSendMessage(input);
-      setInput("");
-    }
-  };
-
-  const handleQuickQuestion = (question: string) => {
-    if (userReg.registered) {
-      onSendMessage(question);
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSend();
-    }
-  };
-
-  const parseMessage = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <span key={index} className="font-bold text-indigo-600">{part.slice(2, -2)}</span>;
-      }
-      return part;
-    });
-  };
-
-  const getPlaceholder = () => {
-    if (!userReg.registered) {
-      return regStep === 'name' ? "Enter your name..." : "Enter 10-digit mobile...";
-    }
-    return "Type your message...";
-  };
-
-  return (
-    <div className={`fixed bottom-6 right-6 z-50 transition-all duration-300 ${isOpen ? 'w-80 sm:w-96 h-[600px]' : 'w-16 h-16'}`}>
-      {isOpen ? (
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col h-full border border-gray-200">
-          <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center relative">
-                <MessageSquare size={18} />
-                <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-indigo-600 rounded-full ${isOffline ? 'bg-blue-400' : 'bg-green-400'}`}></div>
-              </div>
-              <div>
-                <h3 className="font-bold text-base">NexaBot</h3>
-                <span className="text-[10px] text-indigo-200 uppercase tracking-wider">
-                  {isOffline ? 'Demo Mode' : 'AI Assistant'}
-                </span>
-              </div>
-            </div>
-            <div className="flex gap-2 items-center">
-              <div className="relative">
-                <button 
-                  onClick={() => setShowLangMenu(!showLangMenu)}
-                  className="text-white/80 hover:text-white p-1 hover:bg-white/10 rounded-full"
-                >
-                  <Globe size={20} />
-                </button>
-                {showLangMenu && (
-                  <div className="absolute right-0 top-10 bg-white rounded-lg shadow-xl border max-h-64 overflow-y-auto w-48 z-50">
-                    {LANGUAGES.map(lang => (
-                      <button
-                        key={lang.code}
-                        onClick={() => {
-                          onLanguageChange(lang.code);
-                          setShowLangMenu(false);
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm hover:bg-indigo-50 flex items-center gap-2 ${currentLanguage === lang.code ? 'bg-indigo-100 text-indigo-600' : 'text-gray-700'}`}
-                      >
-                        <span>{lang.flag}</span>
-                        <span>{lang.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white p-1 hover:bg-white/10 rounded-full">
-                <X size={20} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-4">
-            {internalChatLog.map((msg, idx) => (
-              <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
-                  {msg.sender === 'bot' && (
-                    <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center mr-2 flex-shrink-0 mt-1">
-                      <Zap size={12} className="text-indigo-600" />
-                    </div>
-                  )}
-                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm shadow-sm ${
-                    msg.sender === 'user' 
-                      ? 'bg-indigo-600 text-white rounded-br-none' 
-                      : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'
-                  }`}>
-                    {parseMessage(msg.text)}
-                  </div>
-                </div>
-                
-                {msg.image && (
-                  <div className={`mt-2 max-w-[80%] rounded-xl overflow-hidden border shadow-sm ${msg.sender === 'bot' ? 'ml-8' : ''}`}>
-                    <img src={msg.image} alt="Product" className="w-full h-40 object-cover" />
-                  </div>
-                )}
-
-                {msg.images && msg.images.length > 0 && (
-                  <div className={`mt-2 grid grid-cols-2 gap-2 max-w-[80%] ${msg.sender === 'bot' ? 'ml-8' : ''}`}>
-                    {msg.images.map((img, i) => (
-                      <div key={i} className="rounded-lg overflow-hidden border shadow-sm">
-                        <img src={img} alt={`Product ${i+1}`} className="w-full h-24 object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {msg.products && msg.products.length > 0 && (
-                  <div className={`mt-2 space-y-2 max-w-[80%] ${msg.sender === 'bot' ? 'ml-8' : ''}`}>
-                    {msg.products.map((prod, i) => (
-                      <div key={i} className="bg-white rounded-lg p-2 border shadow-sm flex gap-2">
-                        <img src={prod.image} alt={prod.title} className="w-16 h-16 object-cover rounded-lg" />
-                        <div className="flex-1">
-                          <div className="font-bold text-xs text-gray-800 truncate">{prod.title}</div>
-                          <div className="text-indigo-600 text-xs font-bold">${prod.price}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-
-          <div className="bg-white border-t p-3 flex gap-2 items-center">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={getPlaceholder()}
-              className="flex-1 bg-gray-100 border-none rounded-full px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white"
-            />
-            <button onClick={handleSend} className="w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-700">
-              <Send size={18} />
-            </button>
-          </div>
-
-          {/* Quick Questions - Only show when registered */}
-          {userReg.registered && (
-            <div className="px-3 pb-2 bg-white border-t border-gray-100">
-              <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
-                {SUGGESTED_QUESTIONS.map((q, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleQuickQuestion(q)}
-                    className="px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-600 text-xs font-medium rounded-full hover:bg-indigo-100 whitespace-nowrap flex-shrink-0"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="pb-2 text-center">
-            <p className="text-[10px] text-gray-400">Powered by <span className="text-indigo-500">Nexa AI Solution</span></p>
-          </div>
-        </div>
-      ) : (
-        <button 
-          onClick={() => setIsOpen(true)}
-          className="w-full h-full bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700"
-        >
-          <span className="absolute -top-2 -right-2 flex h-4 w-4">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-white"></span>
-          </span>
-          <MessageSquare size={28} />
-        </button>
-      )}
-    </div>
-  );
-};
-
-const ProductCard: React.FC<{ product: Product; onAddToCart: (product: Product) => void }> = ({ product, onAddToCart }) => (
-  <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border overflow-hidden group">
-    <div className="relative h-48 overflow-hidden bg-gray-100">
-      <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-      <div className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded-md text-xs font-bold">
-        ${product.price}
-      </div>
-    </div>
-    <div className="p-4">
-      <div className="text-xs text-indigo-500 font-semibold uppercase mb-1">{product.category}</div>
-      <h3 className="font-bold text-gray-800 mb-2 truncate">{product.title}</h3>
-      <p className="text-gray-500 text-xs mb-4 line-clamp-2">{product.description}</p>
-      <button 
-        onClick={() => onAddToCart(product)}
-        className="w-full bg-gray-900 text-white py-2 rounded-lg text-sm font-medium hover:bg-gray-800 flex items-center justify-center gap-2"
-      >
-        <ShoppingCart size={14} /> Add to Cart
-      </button>
-    </div>
-  </div>
-);
-
-const App: React.FC = () => {
-  const [view, setView] = useState<'shop' | 'cart'>('shop');
-  const [products, setProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
-  const [cart, setCart] = useState<Product[]>([]);
-  const [chatLog, setChatLog] = useState<ChatMessage[]>([
-    { sender: 'bot', text: "Hello! 👋 Welcome to Nexa AI Store. To get started, please share your name and mobile number.", timestamp: new Date() }
-  ]);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [userReg, setUserReg] = useState<UserRegistration>({ name: '', mobile: '', registered: false });
-  const [currentLanguage, setCurrentLanguage] = useState('en');
-  const [isBackendOffline, setIsBackendOffline] = useState(false);
-
-  useEffect(() => {
-    const initData = async () => {
-      const remoteProducts = await apiService.getProducts();
-      if (remoteProducts) {
-        setProducts(remoteProducts);
-        setIsBackendOffline(false);
-      } else {
-        setIsBackendOffline(true);
-        setProducts(FALLBACK_PRODUCTS);
-      }
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const mobileRegex = /^\d{10}$/; // Strict 10 digit validation
+        if (!name.trim()) return setError("Name is required.");
+        if (!mobileRegex.test(mobile)) return setError("Enter valid 10-digit mobile number.");
+        onLogin({ name, mobile });
     };
-    initData();
-  }, []);
 
-  const handleRegister = (name: string, mobile: string) => {
-    setUserReg({ name, mobile, registered: true });
-    
-    // Add welcome message after registration
-    setTimeout(() => {
-      setChatLog([
-        { sender: 'bot', text: `Welcome **${name}**! 🎉 I'm your AI shopping assistant. How can I help you today?`, timestamp: new Date() }
-      ]);
-    }, 500);
-  };
-
-  const handleChat = async (message: string) => {
-    const userMsg: ChatMessage = { sender: 'user', text: message, timestamp: new Date() };
-    setChatLog(prev => [...prev, userMsg]);
-
-    const backendResponse = await apiService.sendChat(message, userReg.mobile, userReg.name, currentLanguage);
-    
-    if (backendResponse && backendResponse.text) {
-      const botMsg: ChatMessage = {
-        sender: 'bot',
-        text: backendResponse.text,
-        timestamp: new Date(),
-        image: backendResponse.image,
-        images: backendResponse.images,
-        products: backendResponse.products
-      };
-      setChatLog(prev => [...prev, botMsg]);
-    } else {
-      setChatLog(prev => [...prev, {
-        sender: 'bot',
-        text: "I'm having trouble connecting. Please try again!",
-        timestamp: new Date()
-      }]);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('shop')}>
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
-                  <Package size={20} />
-                </div>
-                <span className="font-bold text-xl">Nexa AI Store</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="relative cursor-pointer" onClick={() => setView('cart')}>
-                <ShoppingCart size={20} className="text-gray-600" />
-                {cart.length > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                    {cart.length}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {view === 'shop' && (
-          <div className="space-y-6">
-            {isBackendOffline && (
-              <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-xl flex items-center gap-3">
-                <Info size={20} />
-                <span className="text-sm font-medium">Demo Mode Active</span>
-              </div>
-            )}
-            <div className="bg-gradient-to-r from-gray-900 to-indigo-900 rounded-3xl p-8 text-white">
-              <h1 className="text-4xl font-extrabold mb-4">Summer Collection 2025</h1>
-              <p className="text-indigo-100 mb-6">AI-Powered Shopping Assistant</p>
-              <button onClick={() => setChatOpen(true)} className="bg-white text-indigo-900 px-6 py-3 rounded-full font-bold">
-                Chat with NexaBot
-              </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {products.map(product => (
-                <ProductCard key={product.id} product={product} onAddToCart={(p) => setCart(prev => [...prev, p])} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {view === 'cart' && (
-          <div>
-            <div className="mb-6 flex items-center gap-4">
-              <button onClick={() => setView('shop')} className="p-2 hover:bg-gray-100 rounded-full">
-                <ArrowLeft size={20} />
-              </button>
-              <h1 className="text-3xl font-bold">Your Cart</h1>
-            </div>
-            {cart.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-xl">
-                <ShoppingCart size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">Your cart is empty</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {cart.map((item, i) => (
-                  <div key={i} className="bg-white p-4 rounded-xl flex gap-4 items-center">
-                    <img src={item.image} alt={item.title} className="w-20 h-20 object-cover rounded-lg" />
-                    <div className="flex-1">
-                      <h3 className="font-bold">{item.title}</h3>
-                      <p className="text-indigo-600 font-bold">${item.price}</p>
+    return (
+        <div className="h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-indigo-600 to-purple-700 text-white">
+            <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl w-full shadow-xl border border-white/20">
+                <div className="text-center mb-6">
+                    <div className="bg-white text-indigo-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <User size={24} />
                     </div>
-                    <button onClick={() => setCart(prev => prev.filter((_, idx) => idx !== i))}>
-                      <Trash2 size={20} className="text-red-500" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </main>
+                    <h3 className="text-xl font-bold">Nexa Login</h3>
+                    <p className="text-indigo-200 text-xs">Enter details to start chat</p>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <input className="w-full bg-white/20 border border-indigo-400/30 rounded-lg px-4 py-2 text-white placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="Your Name" value={name} onChange={e => setName(e.target.value)} />
+                    <input className="w-full bg-white/20 border border-indigo-400/30 rounded-lg px-4 py-2 text-white placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-white/50" placeholder="Mobile (10 digits)" maxLength={10} value={mobile} onChange={e => setMobile(e.target.value)} />
+                    {error && <p className="text-red-300 text-xs font-bold text-center">{error}</p>}
+                    <button type="submit" className="w-full bg-white text-indigo-700 font-bold py-3 rounded-lg hover:bg-indigo-50 transition-colors shadow-lg">Start Conversation</button>
+                </form>
+            </div>
+        </div>
+    );
+};
 
-      <ChatWidget 
-        chatLog={chatLog}
-        onSendMessage={handleChat}
-        isOpen={chatOpen}
-        setIsOpen={setChatOpen}
-        isOffline={isBackendOffline}
-        userReg={userReg}
-        onRegister={handleRegister}
-        currentLanguage={currentLanguage}
-        onLanguageChange={setCurrentLanguage}
-      />
-    </div>
-  );
+// 2. CHAT WIDGET
+const ChatWidget: React.FC<{ 
+    isOpen: boolean; 
+    setIsOpen: (o: boolean) => void;
+    user: UserAuth | null;
+    setUser: (u: UserAuth) => void;
+    chatLog: ChatMessage[];
+    onSendMessage: (msg: string) => void;
+    isTyping: boolean;
+}> = ({ isOpen, setIsOpen, user, setUser, chatLog, onSendMessage, isTyping }) => {
+    const [input, setInput] = useState("");
+    const endRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => { if(isOpen) endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatLog, isOpen, user]);
+
+    const handleSend = (e: React.FormEvent) => {
+        e.preventDefault();
+        if(!input.trim()) return;
+        onSendMessage(input);
+        setInput("");
+    };
+
+    const renderText = (text: string) => text.split(/(\*\*.*?\*\*)/).map((p, i) => 
+        p.startsWith('**') ? <strong key={i} className="text-indigo-800">{p.slice(2, -2)}</strong> : p
+    );
+
+    return (
+        <div className={`fixed bottom-6 right-6 z-50 transition-all duration-300 ${isOpen ? 'w-80 sm:w-96 h-[600px]' : 'w-16 h-16'}`}>
+            {isOpen ? (
+                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col h-full border border-gray-200 font-sans">
+                    <div className="bg-gradient-to-r from-indigo-700 to-purple-700 p-4 text-white flex justify-between items-center shadow-md">
+                        <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center"><MessageSquare size={18} /></div>
+                            <div>
+                                <h3 className="font-bold text-base leading-tight">NexaBot AI</h3>
+                                <span className="text-[10px] text-indigo-200 uppercase font-semibold">{user ? user.name : 'Login Required'}</span>
+                            </div>
+                        </div>
+                        <button onClick={() => setIsOpen(false)}><X size={20} /></button>
+                    </div>
+                    
+                    {!user ? <ChatAuthForm onLogin={setUser} /> : (
+                        <>
+                            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-4">
+                                {chatLog.map((msg, idx) => (
+                                    <div key={idx} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+                                        <div className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-sm leading-relaxed ${
+                                            msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'
+                                        }`}>
+                                            {renderText(msg.text)}
+                                        </div>
+                                        {/* Feature 6 & 7: Render Image Card in Chat */}
+                                        {msg.product && (
+                                            <div className="mt-2 w-48 bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 animate-in fade-in slide-in-from-bottom-2">
+                                                <img src={msg.product.image} className="w-full h-32 object-cover" />
+                                                <div className="p-2">
+                                                    <h4 className="font-bold text-xs truncate">{msg.product.title}</h4>
+                                                    <div className="flex justify-between items-center mt-1">
+                                                        <span className="text-indigo-600 font-bold text-sm">${msg.product.discountedPrice}</span>
+                                                        <span className="text-[10px] bg-red-100 text-red-600 px-1 rounded">-{msg.product.discountPercentage}%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                {isTyping && <div className="text-xs text-gray-400 ml-4">NexaBot is typing...</div>}
+                                <div ref={endRef} />
+                            </div>
+                            <form onSubmit={handleSend} className="p-3 bg-white border-t flex gap-2">
+                                <input className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Type in any language..." value={input} onChange={e => setInput(e.target.value)} />
+                                <button type="submit" className="w-10 h-10 bg-indigo-600 rounded-full text-white flex items-center justify-center hover:bg-indigo-700"><Send size={16} /></button>
+                            </form>
+                        </>
+                    )}
+                </div>
+            ) : (
+                <button onClick={() => setIsOpen(true)} className="w-full h-full bg-indigo-600 text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform animate-bounce-subtle">
+                    <MessageSquare size={28} />
+                </button>
+            )}
+        </div>
+    );
+};
+
+// 3. MAIN APP
+const App = () => {
+    const [products, setProducts] = useState<Product[]>([]);
+    const [cart, setCart] = useState<Product[]>([]);
+    const [user, setUser] = useState<UserAuth | null>(null);
+    const [chatOpen, setChatOpen] = useState(false);
+    const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
+    const [isTyping, setIsTyping] = useState(false);
+    const [view, setView] = useState<'shop' | 'cart'>('shop');
+
+    useEffect(() => {
+        fetch(`${API_BASE_URL}/products`)
+            .then(res => res.json())
+            .then(data => setProducts(data))
+            .catch(err => console.error("API Offline", err));
+    }, []);
+
+    useEffect(() => {
+        if(user) {
+            setChatLog([{ sender: 'bot', text: `Namaste ${user.name}! I speak 22 languages. Ask me anything!`, timestamp: new Date() }]);
+        }
+    }, [user]);
+
+    const handleAddToCart = (product: Product) => {
+        setCart([...cart, product]);
+        setChatOpen(true);
+    };
+
+    const handleSendMessage = async (text: string) => {
+        setChatLog(prev => [...prev, { sender: 'user', text, timestamp: new Date() }]);
+        setIsTyping(true);
+        
+        try {
+            const res = await fetch(`${API_BASE_URL}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    message: text, 
+                    context: { user } // Sending User ID to Backend
+                })
+            });
+            const data = await res.json();
+            setIsTyping(false);
+
+            const botMsg: ChatMessage = {
+                sender: 'bot',
+                text: data.text,
+                timestamp: new Date(),
+                product: data.type === 'product-card' ? data.data : undefined
+            };
+
+            setChatLog(prev => [...prev, botMsg]);
+
+            if (data.type === 'cart-update') {
+                setCart(prev => [...prev, data.data]);
+            }
+        } catch (e) {
+            setIsTyping(false);
+            setChatLog(prev => [...prev, { sender: 'bot', text: "Server offline. Ensure server.js is running.", timestamp: new Date() }]);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
+            {/* Navbar */}
+            <nav className="bg-white border-b border-gray-200 sticky top-0 z-40 px-4 py-3 flex justify-between items-center shadow-sm">
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('shop')}>
+                    <div className="bg-indigo-600 text-white p-2 rounded-lg"><Package size={20}/></div>
+                    <span className="font-bold text-xl hidden sm:block tracking-tight">Nexa Store</span>
+                </div>
+                <div className="flex gap-4 items-center">
+                    {user && <span className="text-sm font-bold text-indigo-900 hidden sm:block">Hi, {user.name}</span>}
+                    <button onClick={() => setView('cart')} className="relative p-2 bg-gray-100 rounded-full hover:bg-indigo-50 transition-colors">
+                        <ShoppingCart size={20} className="text-gray-700"/>
+                        {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm">{cart.length}</span>}
+                    </button>
+                </div>
+            </nav>
+
+            {/* Main Content */}
+            <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+                {view === 'shop' ? (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        {/* Hero */}
+                        <div className="bg-gradient-to-r from-gray-900 to-indigo-900 rounded-3xl p-8 sm:p-12 text-white relative overflow-hidden shadow-2xl">
+                            <div className="relative z-10 max-w-xl">
+                                <h1 className="text-4xl sm:text-5xl font-extrabold mb-4 leading-tight">AI Shopping Gen 2.0</h1>
+                                <p className="text-indigo-100 mb-8 text-lg">Your multilingual assistant is here. Discounts, tracking, and styling advice in your language.</p>
+                                <button onClick={() => setChatOpen(true)} className="bg-white text-indigo-900 px-8 py-3 rounded-full font-bold hover:scale-105 transition-all shadow-lg flex items-center gap-2">
+                                    <Sparkles size={18} className="text-yellow-500" /> Start Chat
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Products Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {products.map(p => (
+                                <div key={p.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group flex flex-col">
+                                    <div className="relative h-64 bg-gray-100 overflow-hidden">
+                                        <img src={p.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"/>
+                                        <div className="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-sm">
+                                            {p.discountPercentage}% OFF
+                                        </div>
+                                    </div>
+                                    <div className="p-4 flex-1 flex flex-col">
+                                        <div className="text-xs text-indigo-500 font-bold uppercase tracking-wider mb-1">{p.category}</div>
+                                        <h3 className="font-bold text-gray-900 truncate mb-auto">{p.title}</h3>
+                                        <div className="flex items-end gap-2 mt-4 mb-4">
+                                            <span className="text-xl font-bold text-indigo-600">${p.discountedPrice}</span>
+                                            <span className="text-sm text-gray-400 line-through">${p.price}</span>
+                                        </div>
+                                        <button onClick={() => handleAddToCart(p)} className="w-full bg-gray-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 flex justify-center gap-2 transition-colors">
+                                            <ShoppingCart size={16}/> Add to Cart
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    /* Cart View */
+                    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4">
+                        <div className="flex items-center gap-4 mb-6">
+                            <button onClick={() => setView('shop')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft size={20}/></button>
+                            <h2 className="text-2xl font-bold">Shopping Cart ({cart.length})</h2>
+                        </div>
+                        {cart.length === 0 ? (
+                            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-300">
+                                <p className="text-gray-500 mb-6 text-lg">Your cart is currently empty.</p>
+                                <button onClick={() => setView('shop')} className="text-indigo-600 font-bold hover:underline">Start Shopping</button>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {cart.map((item, i) => (
+                                    <div key={i} className="flex gap-4 bg-white p-4 rounded-xl shadow-sm items-center border border-gray-100">
+                                        <img src={item.image} className="w-20 h-20 rounded-lg object-cover bg-gray-50" />
+                                        <div className="flex-1">
+                                            <h4 className="font-bold text-gray-900">{item.title}</h4>
+                                            <p className="text-indigo-600 font-bold mt-1">${item.discountedPrice}</p>
+                                        </div>
+                                        <button onClick={() => setCart(cart.filter((_, idx) => idx !== i))} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={20}/></button>
+                                    </div>
+                                ))}
+                                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 mt-8 sticky bottom-6">
+                                    <div className="flex justify-between text-xl font-bold text-gray-900 mb-6">
+                                        <span>Total</span>
+                                        <span>${cart.reduce((a, b) => a + b.discountedPrice, 0).toFixed(2)}</span>
+                                    </div>
+                                    <button onClick={() => { setView('shop'); setChatOpen(true); handleSendMessage("Place Order"); }} className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg flex justify-center items-center gap-2">
+                                        <CreditCard size={20} /> Checkout with AI
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </main>
+
+            <ChatWidget 
+                isOpen={chatOpen} 
+                setIsOpen={setChatOpen} 
+                user={user} 
+                setUser={setUser} 
+                chatLog={chatLog}
+                onSendMessage={handleSendMessage}
+                isTyping={isTyping}
+            />
+        </div>
+    );
 };
 
 export default App;
